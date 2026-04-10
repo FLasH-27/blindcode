@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { listenToContest, getParticipantByName, createParticipant } from "@/lib/participants";
 import { Button } from "@/components/ui/button";
@@ -13,22 +13,27 @@ export default function JoinPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [contestStatus, setContestStatus] = useState("idle");
+  const inputRef = useRef(null);
 
   useEffect(() => {
     // 1. Initial localstorage check
     const existingId = localStorage.getItem("participantId");
-    if (existingId && contestStatus === "active") {
-      router.push("/contest");
-      return;
-    }
-
+    
     // 2. Realtime listener for contest status
     const unsubscribe = listenToContest((data) => {
         setContestStatus(data.status);
+        if (existingId && data.status === "active") {
+          router.push("/contest");
+        }
     });
+
+    // Auto focus input
+    if (inputRef.current) {
+        inputRef.current.focus();
+    }
     
     return () => unsubscribe();
-  }, [contestStatus, router]);
+  }, [router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,8 +69,8 @@ export default function JoinPage() {
     if (contestStatus === "active") {
       return (
         <div className="flex items-center justify-center space-x-2 mt-4 text-sm text-[#71717a]">
-          <div className="w-2 h-2 rounded-full bg-green-500"></div>
-          <span>Contest is live</span>
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+          <span className="text-green-500/80">Contest is live</span>
         </div>
       );
     }
@@ -89,30 +94,32 @@ export default function JoinPage() {
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center font-sans">
       <h1 className="text-white text-4xl font-bold mb-8">Blind Code</h1>
       
-      <div className="bg-[#111] border border-[#222] rounded-lg p-8 w-[380px]">
+      <div className="bg-[#111] border border-[#222] rounded-lg p-8 w-full max-w-[380px]">
         <h2 className="text-white text-base font-medium mb-1">Enter your name</h2>
         <p className="text-[#71717a] text-sm mb-6">You will be assigned a problem when you submit.</p>
         
         <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
           <Input 
+            ref={inputRef}
             value={name} 
             onChange={(e) => setName(e.target.value)} 
             placeholder="Your name" 
-            className="w-full bg-[#0a0a0a] border-[#2a2a2a] text-white focus-visible:ring-[#f97316]"
+            className="w-full bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316] outline-none"
             disabled={loading}
+            autoFocus
           />
           
           <Button 
             type="submit" 
-            disabled={loading}
-            className="w-full bg-[#f97316] hover:bg-[#c2410c] text-black font-semibold"
+            disabled={loading || !name.trim()}
+            className="w-full bg-[#f97316] hover:bg-[#ea580c] text-black font-semibold transition-colors h-10"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Join Contest
           </Button>
 
           {errorMsg && (
-            <p className="text-red-500 text-sm text-center">{errorMsg}</p>
+            <p className="text-red-500 text-sm text-center animate-in fade-in slide-in-from-top-1">{errorMsg}</p>
           )}
 
           {getStatusDisplay()}

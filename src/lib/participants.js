@@ -8,7 +8,9 @@ import {
   updateDoc, 
   onSnapshot, 
   serverTimestamp,
-  query
+  query,
+  increment,
+  arrayUnion
 } from "firebase/firestore";
 
 const PARTICIPANTS_COLLECTION = "participants";
@@ -75,7 +77,9 @@ export const createParticipant = async (name) => {
       code: "",
       language: "javascript",
       lastSavedAt: null,
-      joinedAt: serverTimestamp()
+      joinedAt: serverTimestamp(),
+      tabSwitchCount: 0,
+      tabSwitchLog: []
     });
 
     return docRef.id;
@@ -95,6 +99,18 @@ export const updateCode = async (participantId, code) => {
   } catch (error) {
     console.error("Error updating code:", error);
     throw error;
+  }
+};
+
+export const logTabSwitch = async (participantId) => {
+  try {
+    const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);
+    await updateDoc(docRef, {
+      tabSwitchCount: increment(1),
+      tabSwitchLog: arrayUnion(Date.now())
+    });
+  } catch (error) {
+    console.error("Error logging tab switch:", error);
   }
 };
 

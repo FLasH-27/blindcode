@@ -42,13 +42,17 @@ export const ensureContestConfig = async () => {
 /**
  * Starts the contest by setting status to "active" and recording the start time.
  */
-export const startContest = async () => {
+export const startContest = async (durationMinutes = 60) => {
   try {
     const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
+    const now = Date.now();
+    const endsAt = now + durationMinutes * 60 * 1000;
+    
     await updateDoc(docRef, {
       status: "active",
       startedAt: serverTimestamp(),
-      endedAt: null,
+      endsAt: endsAt,
+      durationMinutes: durationMinutes
     });
   } catch (error) {
     console.error("Error starting contest:", error);

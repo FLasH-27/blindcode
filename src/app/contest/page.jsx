@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import ParticipantGuard from "@/components/ParticipantGuard";
-import { getParticipant, getProblem, listenToContest, updateCode } from "@/lib/participants";
+import { getParticipant, getProblem, listenToContest, updateCode, logTabSwitch } from "@/lib/participants";
 import { Loader2 } from "lucide-react";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -19,6 +19,14 @@ function ContestPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [isReady, setIsReady] = useState(false);
+
+  // Tab switch logic
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [showBanner, setShowBanner] = useState(false);
+
+  // Timer logic
+  const [endsAt, setEndsAt] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null);
 
   // Debouncing logic
   const saveTimeoutRef = useRef(null);
@@ -37,6 +45,7 @@ function ContestPage() {
           if(pData.lastSavedAt) {
               setLastSaved(pData.lastSavedAt.toDate());
           }
+          setTabSwitchCount(pData.tabSwitchCount || 0);
           
           const probData = await getProblem(pData.problemId);
           setProblem(probData);
@@ -50,10 +59,66 @@ function ContestPage() {
 
     const unsubscribe = listenToContest((data) => {
         setContestStatus(data.status);
+        if (data.endsAt) {
+          setEndsAt(data.endsAt);
+        } else {
+          setEndsAt(null);
+        }
     });
     
     return () => unsubscribe();
   }, []);
+
+  // Timer Effect
+  useEffect(() => {
+    if (contestStatus !== "active" || !endsAt) {
+      setTimeLeft(null);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const end = typeof endsAt === 'number' ? endsAt : (endsAt.toDate ? endsAt.toDate().getTime() : new Date(endsAt).getTime());
+      const remaining = Math.max(0, end - now);
+      
+      setTimeLeft(remaining);
+      
+      if (remaining <= 0) {
+        setContestStatus("ended"); // Optimistic update
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [contestStatus, endsAt]);
+
+  // Tab Switch Effect
+  useEffect(() => {
+    if (contestStatus !== "active") return;
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        const pId = localStorage.getItem("participantId");
+        if (pId) logTabSwitch(pId);
+        
+        setTabSwitchCount(prev => {
+          const newCount = prev + 1;
+          setShowBanner(true);
+          return newCount;
+        });
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [contestStatus]);
+
+  // Banner fade out
+  useEffect(() => {
+    if (showBanner && tabSwitchCount < 3) {
+      const t = setTimeout(() => setShowBanner(false), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [showBanner, tabSwitchCount]);
 
   const handleEditorChange = (value) => {
     setCode(value);
@@ -89,6 +154,14 @@ function ContestPage() {
     return `Last saved: ${h}:${m}:${s}.${ms}`;
   };
 
+  const formatTimer = (ms) => {
+    if (ms === null || ms < 0) return "00:00";
+    const totalSeconds = Math.floor(ms / 1000);
+    const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   if (!isReady) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center space-y-4">
@@ -115,22 +188,47 @@ function ContestPage() {
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#0a0a0a]">
       {/* Topbar */}
-      <div className="h-[48px] bg-[#111] border-b border-[#222] flex items-center justify-between px-6 shrink-0 relative z-10">
-        <div className="text-[#f97316] text-[14px] font-semibold">Blind Code</div>
-        <div className="text-[#71717a] text-[13px]">{participant?.name}</div>
-        <div className="text-[#71717a] text-[12px] tabular-nums">{formatLastSaved()}</div>
+      <div className="h-[48px] bg-[#111] border-b border-[#222] flex items-center justify-between px-6 shrink-0 relative z-10 w-full">
+        <div className="flex items-center gap-4 w-1/3">
+          <div className="text-[#f97316] text-[14px] font-semibold">Blind Code</div>
+          <div className="text-[#71717a] text-[13px]">{participant?.name}</div>
+        </div>
+        
+        <div className="w-1/3 flex justify-center">
+          <div className="text-[#71717a] text-[12px] tabular-nums">{formatLastSaved()}</div>
+        </div>
+        
+        <div className="w-1/3 flex justify-end">
+          {timeLeft !== null && contestStatus === "active" && (
+            <div className={`tabular-nums font-mono text-[14px] font-semibold flex items-center 
+                ${timeLeft <= 60000 ? 'text-red-500 animate-pulse' : timeLeft <= 300000 ? 'text-red-500' : 'text-white'}`}>
+              {formatTimer(timeLeft)}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Warning Banner */}
+      {showBanner && (
+        <div className="bg-[#1c0a0a] border-b border-[#7f1d1d] py-2 px-4 shadow-sm text-center shrink-0 z-10 animate-in slide-in-from-top-2">
+          <p className="text-[#ef4444] text-[13px] font-medium">
+            {tabSwitchCount >= 3 
+              ? "⚠ Multiple tab switches detected. Your activity has been flagged."
+              : "⚠ Tab switch detected. This has been logged."}
+          </p>
+        </div>
+      )}
 
       {/* Main Split */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel */}
         <div className="w-[40%] bg-[#0f0f0f] border-r border-[#222] flex flex-col">
-          <div className="h-[40px] bg-[#111] border-b border-[#1a1a1a] flex">
+          <div className="h-[40px] bg-[#111] border-b border-[#1a1a1a] flex shrink-0">
             {["Description", "Examples", "Hints"].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 text-[13px] h-full flex items-center justify-center border-b-2 transition-colors ${
+                className={`flex-1 text-[13px] h-full flex items-center justify-center border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500 focus-visible:-outline-offset-2 ${
                   activeTab === tab 
                     ? "text-white border-[#f97316]" 
                     : "text-[#71717a] border-transparent hover:text-[#a1a1aa]"
@@ -148,22 +246,27 @@ function ContestPage() {
 
         {/* Right Panel */}
         <div className="w-[60%] flex flex-col bg-[#1e1e1e] relative">
-          {/* Language Selector overlaying editor */}
+          {/* Minimal Language Selector */}
           <div className="absolute top-2 right-4 z-10">
             <select 
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              className="bg-[#2d2d2d] text-[#d4d4d4] text-[12px] py-1 px-2 border border-[#3e3e42] rounded focus:outline-none focus:border-[#f97316]"
+              className="bg-transparent text-[#a1a1aa] hover:text-white text-[12px] py-1 pl-2 pr-6 border border-transparent rounded cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#f97316] appearance-none"
+              style={{
+                backgroundImage: \`url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a1a1aa%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")\`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 6px center'
+              }}
             >
-              <option value="javascript">JavaScript</option>
-              <option value="python">Python</option>
-              <option value="java">Java</option>
-              <option value="cpp">C++</option>
-              <option value="c">C</option>
+              <option value="javascript" className="bg-[#2d2d2d] text-[#d4d4d4]">JavaScript</option>
+              <option value="python" className="bg-[#2d2d2d] text-[#d4d4d4]">Python</option>
+              <option value="java" className="bg-[#2d2d2d] text-[#d4d4d4]">Java</option>
+              <option value="cpp" className="bg-[#2d2d2d] text-[#d4d4d4]">C++</option>
+              <option value="c" className="bg-[#2d2d2d] text-[#d4d4d4]">C</option>
             </select>
           </div>
           
-          <div className="flex-1 pt-10">
+          <div className="flex-1 min-h-0 relative h-full w-full pt-10">
             <Editor
               height="100%"
               theme="vs-dark"
