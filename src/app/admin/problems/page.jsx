@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter,
   DialogClose,
@@ -165,6 +166,9 @@ export default function ProblemsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingProblem ? "Edit Problem" : "Add New Problem"}</DialogTitle>
+            <DialogDescription>
+              {editingProblem ? "Update the problem details below." : "Fill in the details to create a new problem."}
+            </DialogDescription>
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
