@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Problems collection — admin read/write
+    match /problems/{problemId} {
+      allow read, write: if true;
+    }
+
+    // Participants collection — read/write for contest flow
+    match /participants/{participantId} {
+      allow read, write: if true;
+    }
+
+    // Contest config — single document for contest state
+    match /contest/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
