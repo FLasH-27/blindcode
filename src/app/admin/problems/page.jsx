@@ -30,6 +30,8 @@ export default function ProblemsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProblem, setEditingProblem] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lcUrl, setLcUrl] = useState("");
+  const [fetchingLc, setFetchingLc] = useState(false);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -69,6 +71,39 @@ export default function ProblemsPage() {
       hints: problem.hints || ""
     });
     setIsFormOpen(true);
+  };
+
+  const handleFetchLeetCode = async () => {
+    if (!lcUrl) return;
+    setFetchingLc(true);
+    try {
+      const res = await fetch('/api/leetcode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url: lcUrl })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        alert(data.error || "Failed to fetch LeetCode problem");
+        return;
+      }
+
+      setFormData({
+        title: data.title || formData.title,
+        description: data.description || formData.description,
+        examples: data.examples || formData.examples,
+        hints: data.hints || formData.hints
+      });
+      setLcUrl("");
+    } catch (err) {
+      console.error(err);
+      alert("Error fetching LeetCode problem");
+    } finally {
+      setFetchingLc(false);
+    }
   };
 
   const handleSaveProblem = async () => {
@@ -187,6 +222,25 @@ export default function ProblemsPage() {
           </DialogHeader>
           
           <div className="grid gap-6 py-4">
+            {!editingProblem && (
+                <div className="flex items-center gap-3 bg-[#161616] p-3 rounded-md border border-[#222]">
+                  <Input 
+                    placeholder="https://leetcode.com/problems/two-sum/"
+                    value={lcUrl}
+                    onChange={(e) => setLcUrl(e.target.value)}
+                    className="bg-[#0a0a0a] border-[#333] text-sm h-9 focus-visible:ring-[#f97316]"
+                  />
+                  <Button 
+                    onClick={handleFetchLeetCode} 
+                    disabled={fetchingLc || !lcUrl}
+                    variant="outline"
+                    className="h-9 whitespace-nowrap bg-[#1a1a1a] text-[#d4d4d4] border-[#333] hover:text-white hover:bg-[#222]"
+                  >
+                    {fetchingLc ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Auto-Fill
+                  </Button>
+                </div>
+            )}
             <div className="grid gap-2">
               <label htmlFor="title" className="text-xs uppercase text-[#71717a] font-bold tracking-wider">
                 Problem Title
