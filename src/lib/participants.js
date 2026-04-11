@@ -102,6 +102,28 @@ export const updateCode = async (participantId, code) => {
   }
 };
 
+export const updateLanguage = async (participantId, language) => {
+  try {
+    const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);
+    await updateDoc(docRef, { language });
+  } catch (error) {
+    console.error("Error updating language:", error);
+    throw error;
+  }
+};
+
+export const saveEvaluation = async (participantId, evaluationData) => {
+  try {
+    const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);
+    await updateDoc(docRef, {
+      evaluation: evaluationData
+    });
+  } catch (error) {
+    console.error("Error saving evaluation:", error);
+    throw error;
+  }
+};
+
 export const submitContestEarly = async (participantId) => {
   try {
     const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);

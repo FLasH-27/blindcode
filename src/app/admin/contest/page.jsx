@@ -10,6 +10,7 @@ import {
   resetContest,
 } from "@/lib/contest";
 import { subscribeToProblems } from "@/lib/problems";
+import { saveEvaluation } from "@/lib/participants";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -138,6 +139,35 @@ function SwitchBadge({ count }) {
 
 function ViewCodeDrawer({ participant, problem, isOpen, onClose }) {
   const scrollRef = useRef(null);
+  const [evalLoading, setEvalLoading] = useState(false);
+  const [evalError, setEvalError] = useState("");
+
+  const handleEvaluate = async () => {
+    if (!participant || !problem) return;
+    setEvalLoading(true);
+    setEvalError("");
+    try {
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: participant.code,
+          language: participant.language,
+          problemTitle: problem.title,
+          problemDescription: problem.description,
+          examples: problem.examples,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Evaluation failed");
+
+      await saveEvaluation(participant.id, data);
+    } catch (err) {
+      setEvalError(err.message);
+    } finally {
+      setEvalLoading(false);
+    }
+  };
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -278,6 +308,56 @@ function ViewCodeDrawer({ participant, problem, isOpen, onClose }) {
                   </>
                 )}
               </div>
+            )}
+          </div>
+
+          <div className="p-5 border-t border-[#222] bg-[#0f0f0f]">
+            <h4 className="text-white text-sm font-semibold mb-3 border-b border-[#222] pb-2">AI Evaluation</h4>
+            {participant.evaluation ? (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between bg-[#161616] p-4 rounded-lg border border-[#222]">
+                        <span className="text-[#a1a1aa] font-medium text-sm">Total Score</span>
+                        <span className={`text-xl font-bold ${participant.evaluation.totalScore >= 80 ? 'text-[#22c55e]' : participant.evaluation.totalScore >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                            {participant.evaluation.totalScore}<span className="text-[#555] text-sm">/100</span>
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-[#111] p-3 rounded border border-[#222]">
+                            <p className="text-[#71717a] text-[11px] uppercase tracking-wider mb-1">Execution</p>
+                            <p className="text-white text-sm font-semibold">{participant.evaluation.executionScore}/60</p>
+                        </div>
+                        <div className="bg-[#111] p-3 rounded border border-[#222]">
+                            <p className="text-[#71717a] text-[11px] uppercase tracking-wider mb-1">Complexity</p>
+                            <p className="text-white text-sm font-semibold">{participant.evaluation.complexityScore}/10</p>
+                        </div>
+                        <div className="bg-[#111] p-3 rounded border border-[#222]">
+                            <p className="text-[#71717a] text-[11px] uppercase tracking-wider mb-1">Logic</p>
+                            <p className="text-white text-sm font-semibold">{participant.evaluation.logicScore}/10</p>
+                        </div>
+                        <div className="bg-[#111] p-3 rounded border border-[#222]">
+                            <p className="text-[#71717a] text-[11px] uppercase tracking-wider mb-1">Errors</p>
+                            <p className="text-white text-sm font-semibold">{participant.evaluation.errorScore}/20</p>
+                        </div>
+                    </div>
+                    <div className="bg-[#1a1a1a] p-3 rounded border border-[#333]">
+                        <p className="text-[#a1a1aa] text-[13px] italic leading-relaxed">
+                            "{participant.evaluation.feedback}"
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <p className="text-[#71717a] text-[13px]">No AI evaluation has been run for this submission yet.</p>
+                    {evalError && <p className="text-red-500 text-xs">{evalError}</p>}
+                    <Button 
+                        onClick={handleEvaluate} 
+                        disabled={evalLoading || !participant.code}
+                        className="w-full bg-[#f97316] text-black hover:bg-[#ea580c] font-semibold"
+                    >
+                        {evalLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        Evaluate with Gemini
+                    </Button>
+                </div>
             )}
           </div>
         </div>
@@ -560,6 +640,7 @@ export default function AdminContestPage() {
                         </TableHead>
                         <TableHead className="text-center">Switches</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="text-center">Score</TableHead>
                         <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -599,6 +680,15 @@ export default function AdminContestPage() {
                         </TableCell>
                         <TableCell>
                             <ParticipantStatusBadge participant={p} />
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums">
+                            {p.evaluation ? (
+                                <span className={`font-bold ${p.evaluation.totalScore >= 80 ? 'text-[#22c55e]' : p.evaluation.totalScore >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                    {p.evaluation.totalScore}<span className="text-[#555] font-normal text-xs">/100</span>
+                                </span>
+                            ) : (
+                                <span className="text-[#444]">-</span>
+                            )}
                         </TableCell>
                         <TableCell className="text-right">
                             <Button

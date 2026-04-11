@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import ParticipantGuard from "@/components/ParticipantGuard";
-import { getParticipant, getProblem, listenToContest, updateCode, logTabSwitch, submitContestEarly } from "@/lib/participants";
+import { getParticipant, getProblem, listenToContest, updateCode, updateLanguage, logTabSwitch, submitContestEarly } from "@/lib/participants";
 import { Loader2 } from "lucide-react";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -274,7 +274,13 @@ function ContestPage() {
           <div className="absolute top-2 right-4 z-10">
             <select 
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => {
+                const newLang = e.target.value;
+                setLanguage(newLang);
+                if (participant?.id) {
+                  updateLanguage(participant.id, newLang).catch(console.error);
+                }
+              }}
               className="bg-transparent text-[#a1a1aa] hover:text-white text-[12px] py-1 pl-2 pr-6 border border-transparent rounded cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#f97316] appearance-none"
               style={{
                 backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a1a1aa%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")',
