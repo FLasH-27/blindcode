@@ -96,8 +96,15 @@ function LanguageBadge({ language }) {
 
 // ─── Participant Status Badge ───────────────────────────────────────────────
 
-function ParticipantStatusBadge({ lastSavedAt }) {
-  if (!lastSavedAt) {
+function ParticipantStatusBadge({ participant }) {
+  if (participant.submittedAt) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
+        Submitted
+      </span>
+    );
+  }
+  if (!participant.lastSavedAt) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#1a1a1a] text-[#71717a] border border-[#333] text-xs font-medium">
         Joined
@@ -171,6 +178,11 @@ function ViewCodeDrawer({ participant, problem, isOpen, onClose }) {
               {participant.lastSavedAt && (
                 <span className="text-[#f97316] text-xs">
                   Last saved: {formatTimeWithMs(participant.lastSavedAt)}
+                </span>
+              )}
+              {participant.submittedAt && (
+                <span className="text-blue-400 text-xs">
+                  Submitted at: {formatTimeWithMs(participant.submittedAt)}
                 </span>
               )}
             </div>
@@ -586,7 +598,7 @@ export default function AdminContestPage() {
                             <SwitchBadge count={p.tabSwitchCount} />
                         </TableCell>
                         <TableCell>
-                            <ParticipantStatusBadge lastSavedAt={p.lastSavedAt} />
+                            <ParticipantStatusBadge participant={p} />
                         </TableCell>
                         <TableCell className="text-right">
                             <Button

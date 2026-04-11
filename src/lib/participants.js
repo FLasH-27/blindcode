@@ -102,6 +102,18 @@ export const updateCode = async (participantId, code) => {
   }
 };
 
+export const submitContestEarly = async (participantId) => {
+  try {
+    const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);
+    await updateDoc(docRef, {
+      submittedAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Error submitting contest early:", error);
+    throw error;
+  }
+};
+
 export const logTabSwitch = async (participantId) => {
   try {
     const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);

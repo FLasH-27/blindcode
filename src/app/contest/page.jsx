@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import ParticipantGuard from "@/components/ParticipantGuard";
-import { getParticipant, getProblem, listenToContest, updateCode, logTabSwitch } from "@/lib/participants";
+import { getParticipant, getProblem, listenToContest, updateCode, logTabSwitch, submitContestEarly } from "@/lib/participants";
 import { Loader2 } from "lucide-react";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -19,6 +19,7 @@ function ContestPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [isReady, setIsReady] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   // Tab switch logic
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
@@ -44,6 +45,9 @@ function ContestPage() {
           setLanguage(pData.language || "javascript");
           if(pData.lastSavedAt) {
               setLastSaved(pData.lastSavedAt.toDate());
+          }
+          if(pData.submittedAt) {
+              setIsSubmitted(true);
           }
           setTabSwitchCount(pData.tabSwitchCount || 0);
           
@@ -162,6 +166,18 @@ function ContestPage() {
     return `${m}:${s}`;
   };
 
+  const handleSubmitEarly = async () => {
+    if (window.confirm("Are you sure you want to submit? You won't be able to edit your code anymore.")) {
+      try {
+        const pId = localStorage.getItem("participantId");
+        await submitContestEarly(pId);
+        setIsSubmitted(true);
+      } catch (err) {
+        console.error("Submit failed", err);
+      }
+    }
+  };
+
   if (!isReady) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center space-y-4">
@@ -198,7 +214,15 @@ function ContestPage() {
           <div className="text-[#71717a] text-[12px] tabular-nums">{formatLastSaved()}</div>
         </div>
         
-        <div className="w-1/3 flex justify-end">
+        <div className="w-1/3 flex justify-end items-center gap-4">
+          {contestStatus === "active" && !isSubmitted && (
+            <button
+              onClick={handleSubmitEarly}
+              className="px-4 py-1.5 bg-[#f97316] text-black text-[13px] font-semibold rounded hover:bg-[#ea580c] transition-colors focus:ring-1 focus:ring-orange-500 focus:outline-none"
+            >
+              Submit
+            </button>
+          )}
           {timeLeft !== null && contestStatus === "active" && (
             <div className={`tabular-nums font-mono text-[14px] font-semibold flex items-center 
                 ${timeLeft <= 60000 ? 'text-red-500 animate-pulse' : timeLeft <= 300000 ? 'text-red-500' : 'text-white'}`}>
@@ -253,7 +277,7 @@ function ContestPage() {
               onChange={(e) => setLanguage(e.target.value)}
               className="bg-transparent text-[#a1a1aa] hover:text-white text-[12px] py-1 pl-2 pr-6 border border-transparent rounded cursor-pointer transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#f97316] appearance-none"
               style={{
-                backgroundImage: \`url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a1a1aa%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")\`,
+                backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a1a1aa%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")',
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: 'right 6px center'
               }}
@@ -278,7 +302,7 @@ function ContestPage() {
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 wordWrap: "on",
-                readOnly: contestStatus === "ended"
+                readOnly: contestStatus === "ended" || isSubmitted
               }}
             />
           </div>
@@ -290,6 +314,14 @@ function ContestPage() {
         <div className="absolute inset-0 z-50 bg-[rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
           <h2 className="text-white text-[24px] font-semibold mb-2">Contest Ended</h2>
           <p className="text-[#71717a] text-[14px] mb-4">Your code has been saved.</p>
+          <p className="text-[#f97316] text-[13px]">{formatLastSaved()}</p>
+        </div>
+      )}
+      {/* Submitted Early Overlay */}
+      {isSubmitted && contestStatus !== "ended" && (
+        <div className="absolute inset-0 z-50 bg-[rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
+          <h2 className="text-white text-[24px] font-semibold mb-2">Submitted Successfully</h2>
+          <p className="text-[#71717a] text-[14px] mb-4">You have submitted your code early. Please wait for the contest to end.</p>
           <p className="text-[#f97316] text-[13px]">{formatLastSaved()}</p>
         </div>
       )}
