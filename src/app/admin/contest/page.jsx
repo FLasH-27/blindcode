@@ -495,7 +495,7 @@ export default function AdminContestPage() {
         const currentId = config?.sessionId || "default";
         const sessionFilter = selectedSession === "current" ? currentId : selectedSession;
         
-        if ((p.sessionId || "default") !== sessionFilter) return false;
+        if (String(p.sessionId || "default") !== String(sessionFilter)) return false;
         
         return true;
     });
@@ -553,7 +553,7 @@ export default function AdminContestPage() {
                     </span>
                     </p>
                     <p className="text-[#f97316] text-sm font-medium">
-                    {participants.length} participant{participants.length !== 1 ? "s" : ""} joined
+                    {filteredAndSortedParticipants.length} participant{filteredAndSortedParticipants.length !== 1 ? "s" : ""} joined
                     </p>
                 </div>
               </div>
@@ -619,7 +619,7 @@ export default function AdminContestPage() {
         <div className="flex items-center justify-between">
             <h2 className="text-base font-medium text-white">Participants</h2>
             <span className="text-[#71717a] text-[13px]">
-                {participants.length} participant{participants.length !== 1 ? "s" : ""}
+                {filteredAndSortedParticipants.length} participant{filteredAndSortedParticipants.length !== 1 ? "s" : ""}
             </span>
         </div>
         

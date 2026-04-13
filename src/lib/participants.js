@@ -3,6 +3,7 @@ import {
   collection, 
   doc, 
   addDoc, 
+  setDoc,
   getDoc,
   getDocs,
   updateDoc, 
@@ -32,11 +33,22 @@ export const getParticipant = async (participantId) => {
   }
 };
 
-export const createParticipant = async (name) => {
+export const createOrResumeParticipant = async (rollId, name) => {
   try {
     // 0. Get active session ID
     const configSnap = await getDoc(doc(db, "contest", CONTEST_DOC));
     const sessionId = configSnap.exists() ? (configSnap.data().sessionId || "default") : "default";
+
+    // Create a deterministic participant ID for this session & rollId
+    const participantDocId = `${sessionId}_${rollId}`;
+    
+    // Check if resuming
+    const docRef = doc(db, PARTICIPANTS_COLLECTION, participantDocId);
+    const existingSnap = await getDoc(docRef);
+    if (existingSnap.exists()) {
+      await updateDoc(docRef, { name: name.trim() });
+      return participantDocId;
+    }
 
     // 1. Fetch all problems to get IDs
     const problemsQuery = query(collection(db, PROBLEMS_COLLECTION));
@@ -79,11 +91,12 @@ export const createParticipant = async (name) => {
     const assignedProblemId = minProblems[Math.floor(Math.random() * minProblems.length)];
 
     // 6. Create participant
-    const docRef = await addDoc(collection(db, PARTICIPANTS_COLLECTION), {
+    await setDoc(docRef, {
       name: name.trim(),
+      rollId,
       problemId: assignedProblemId,
       code: "",
-      language: "javascript",
+      language: "python",
       lastSavedAt: null,
       joinedAt: serverTimestamp(),
       tabSwitchCount: 0,
@@ -91,7 +104,7 @@ export const createParticipant = async (name) => {
       sessionId: sessionId
     });
 
-    return docRef.id;
+    return participantDocId;
   } catch (error) {
     console.error("Error creating participant:", error);
     throw error;

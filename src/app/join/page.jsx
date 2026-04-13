@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { listenToContest, getParticipantByName, createParticipant } from "@/lib/participants";
+import { listenToContest, createOrResumeParticipant } from "@/lib/participants";
+import { validateCredential } from "@/lib/credentials";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
@@ -10,6 +11,8 @@ import { Loader2 } from "lucide-react";
 export default function JoinPage() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [rollId, setRollId] = useState("");
+  const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [contestStatus, setContestStatus] = useState("idle");
@@ -22,8 +25,14 @@ export default function JoinPage() {
     // 2. Realtime listener for contest status
     const unsubscribe = listenToContest((data) => {
         setContestStatus(data.status);
+        const activeSessionId = data.sessionId || "default";
+
         if (existingId && data.status === "active") {
-          router.push("/contest");
+          if (existingId.startsWith(activeSessionId + "_")) {
+            router.push("/contest");
+          } else {
+            localStorage.removeItem("participantId");
+          }
         }
     });
 
@@ -37,7 +46,10 @@ export default function JoinPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !rollId.trim() || !password.trim()) {
+      setErrorMsg("Please fill in all fields.");
+      return;
+    }
 
     if (contestStatus !== "active") {
       setErrorMsg("Contest is not active yet.");
@@ -48,19 +60,17 @@ export default function JoinPage() {
     setErrorMsg("");
 
     try {
-      const existingParticipant = await getParticipantByName(name);
-      
-      if (existingParticipant) {
-        localStorage.setItem("participantId", existingParticipant.id);
-        router.push("/contest");
-      } else {
-        const newId = await createParticipant(name);
-        localStorage.setItem("participantId", newId);
-        router.push("/contest");
+      const isValid = await validateCredential(rollId.trim(), password.trim());
+      if (!isValid) {
+        throw new Error("Invalid Participant ID or Password.");
       }
+
+      const newId = await createOrResumeParticipant(rollId.trim(), name.trim());
+      localStorage.setItem("participantId", newId);
+      router.push("/contest");
     } catch (err) {
       console.error(err);
-      setErrorMsg("Failed to join. Try again.");
+      setErrorMsg(err.message || "Failed to join. Try again.");
       setLoading(false);
     }
   };
@@ -95,24 +105,39 @@ export default function JoinPage() {
       <h1 className="text-white text-4xl font-bold mb-8">Blind Code</h1>
       
       <div className="bg-[#111] border border-[#222] rounded-lg p-8 w-full max-w-[380px]">
-        <h2 className="text-white text-base font-medium mb-1">Enter your name</h2>
-        <p className="text-[#71717a] text-sm mb-6">You will be assigned a problem when you submit.</p>
+        <h2 className="text-white text-base font-medium mb-1">Contest Login</h2>
+        <p className="text-[#71717a] text-sm mb-6">Enter your credential strictly to join the session.</p>
         
         <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
           <Input 
             ref={inputRef}
-            value={name} 
-            onChange={(e) => setName(e.target.value)} 
-            placeholder="Your name" 
-            className="w-full bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316] outline-none"
+            value={rollId} 
+            onChange={(e) => setRollId(e.target.value)} 
+            placeholder="Participant ID (e.g. A3XZ9)" 
+            className="w-full bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-1 focus-visible:ring-[#f97316] outline-none"
             disabled={loading}
             autoFocus
+          />
+          <Input 
+            type="password"
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            placeholder="Password" 
+            className="w-full bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-1 focus-visible:ring-[#f97316] outline-none"
+            disabled={loading}
+          />
+          <Input 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+            placeholder="Your Display Name" 
+            className="w-full bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-1 focus-visible:ring-[#f97316] outline-none"
+            disabled={loading}
           />
           
           <Button 
             type="submit" 
-            disabled={loading || !name.trim()}
-            className="w-full bg-[#f97316] hover:bg-[#ea580c] text-black font-semibold transition-colors h-10"
+            disabled={loading || !name.trim() || !rollId.trim() || !password.trim()}
+            className="w-full bg-[#f97316] hover:bg-[#ea580c] text-black font-semibold transition-colors h-10 mt-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Join Contest

@@ -288,11 +288,9 @@ function ContestPage() {
                 backgroundPosition: 'right 6px center'
               }}
             >
-              <option value="javascript" className="bg-[#2d2d2d] text-[#d4d4d4]">JavaScript</option>
               <option value="python" className="bg-[#2d2d2d] text-[#d4d4d4]">Python</option>
               <option value="java" className="bg-[#2d2d2d] text-[#d4d4d4]">Java</option>
               <option value="cpp" className="bg-[#2d2d2d] text-[#d4d4d4]">C++</option>
-              <option value="c" className="bg-[#2d2d2d] text-[#d4d4d4]">C</option>
             </select>
           </div>
           
@@ -308,7 +306,17 @@ function ContestPage() {
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 wordWrap: "on",
-                readOnly: contestStatus === "ended" || isSubmitted
+                readOnly: contestStatus === "ended" || isSubmitted,
+                quickSuggestions: false,
+                suggestOnTriggerCharacters: false,
+                acceptSuggestionOnEnter: "off",
+                tabCompletion: "off",
+                wordBasedSuggestions: "off",
+                parameterHints: { enabled: false },
+                hover: { enabled: false },
+                lightbulb: { enabled: false },
+                inlayHints: { enabled: false },
+                renderValidationDecorations: "off"
               }}
             />
           </div>

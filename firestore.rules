@@ -16,5 +16,10 @@ service cloud.firestore {
     match /contest/{docId} {
       allow read, write: if true;
     }
+
+    // Credentials collection — admin and join flow
+    match /credentials/{credentialId} {
+      allow read, write: if true;
+    }
   }
 }
