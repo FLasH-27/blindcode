@@ -31,6 +31,7 @@ export const ensureContestConfig = async () => {
         startedAt: null,
         endedAt: null,
         totalProblems: 0,
+        sessionId: "default",
       });
     }
   } catch (error) {
@@ -47,12 +48,14 @@ export const startContest = async (durationMinutes = 60) => {
     const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
     const now = Date.now();
     const endsAt = now + durationMinutes * 60 * 1000;
+    const sessionId = now.toString();
     
     await updateDoc(docRef, {
       status: "active",
       startedAt: serverTimestamp(),
       endsAt: endsAt,
-      durationMinutes: durationMinutes
+      durationMinutes: durationMinutes,
+      sessionId: sessionId
     });
   } catch (error) {
     console.error("Error starting contest:", error);
@@ -106,12 +109,12 @@ export const listenToContestConfig = (callback) => {
       if (snapshot.exists()) {
         callback(snapshot.data());
       } else {
-        callback({ status: "idle", startedAt: null, endedAt: null, totalProblems: 0 });
+        callback({ status: "idle", startedAt: null, endedAt: null, totalProblems: 0, sessionId: "default" });
       }
     },
     (error) => {
       console.error("Error listening to contest config:", error);
-      callback({ status: "idle", startedAt: null, endedAt: null, totalProblems: 0 });
+      callback({ status: "idle", startedAt: null, endedAt: null, totalProblems: 0, sessionId: "default" });
     }
   );
 };

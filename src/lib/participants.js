@@ -10,7 +10,8 @@ import {
   serverTimestamp,
   query,
   increment,
-  arrayUnion
+  arrayUnion,
+  deleteDoc
 } from "firebase/firestore";
 
 const PARTICIPANTS_COLLECTION = "participants";
@@ -33,6 +34,10 @@ export const getParticipant = async (participantId) => {
 
 export const createParticipant = async (name) => {
   try {
+    // 0. Get active session ID
+    const configSnap = await getDoc(doc(db, "contest", CONTEST_DOC));
+    const sessionId = configSnap.exists() ? (configSnap.data().sessionId || "default") : "default";
+
     // 1. Fetch all problems to get IDs
     const problemsQuery = query(collection(db, PROBLEMS_COLLECTION));
     const problemsSnapshot = await getDocs(problemsQuery);
@@ -50,9 +55,12 @@ export const createParticipant = async (name) => {
     problemIds.forEach(id => { frequencyMap[id] = 0; });
     
     participantsSnapshot.docs.forEach(d => {
-      const pId = d.data().problemId;
-      if (frequencyMap[pId] !== undefined) {
-        frequencyMap[pId]++;
+      const data = d.data();
+      if (!data.sessionId || data.sessionId === sessionId) { // count legacy as current or strictly current
+        const pId = data.problemId;
+        if (frequencyMap[pId] !== undefined) {
+          frequencyMap[pId]++;
+        }
       }
     });
 
@@ -79,7 +87,8 @@ export const createParticipant = async (name) => {
       lastSavedAt: null,
       joinedAt: serverTimestamp(),
       tabSwitchCount: 0,
-      tabSwitchLog: []
+      tabSwitchLog: [],
+      sessionId: sessionId
     });
 
     return docRef.id;
@@ -108,6 +117,16 @@ export const updateLanguage = async (participantId, language) => {
     await updateDoc(docRef, { language });
   } catch (error) {
     console.error("Error updating language:", error);
+    throw error;
+  }
+};
+
+export const deleteParticipant = async (participantId) => {
+  try {
+    const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Error deleting participant:", error);
     throw error;
   }
 };

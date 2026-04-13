@@ -10,7 +10,7 @@ import {
   resetContest,
 } from "@/lib/contest";
 import { subscribeToProblems } from "@/lib/problems";
-import { saveEvaluation } from "@/lib/participants";
+import { saveEvaluation, deleteParticipant } from "@/lib/participants";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,7 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, ArrowUpDown } from "lucide-react";
+import { Loader2, Search, ArrowUpDown, Trash2 } from "lucide-react";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -375,6 +375,7 @@ export default function AdminContestPage() {
   const [loading, setLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSession, setSelectedSession] = useState("current");
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
   const [timeLeft, setTimeLeft] = useState(null);
 
@@ -479,10 +480,25 @@ export default function AdminContestPage() {
     }
   }, []);
 
+  const uniqueSessions = useMemo(() => {
+    const sessions = new Set();
+    participants.forEach(p => {
+        if (p.sessionId) sessions.add(p.sessionId);
+    });
+    return Array.from(sessions).sort((a,b) => b.localeCompare(a));
+  }, [participants]);
+
   const filteredAndSortedParticipants = useMemo(() => {
-    let result = participants.filter(p => 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    let result = participants.filter(p => {
+        if (!p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        
+        const currentId = config?.sessionId || "default";
+        const sessionFilter = selectedSession === "current" ? currentId : selectedSession;
+        
+        if ((p.sessionId || "default") !== sessionFilter) return false;
+        
+        return true;
+    });
 
     result.sort((a, b) => {
         const timeA = a.lastSavedAt ? (a.lastSavedAt.toDate ? a.lastSavedAt.toDate().getTime() : new Date(a.lastSavedAt).getTime()) : 0;
@@ -617,6 +633,27 @@ export default function AdminContestPage() {
                     className="pl-10 bg-[#111] border-[#222] text-sm focus-visible:ring-[#f97316]"
                 />
             </div>
+            
+            <div className="relative border border-[#222] rounded-md bg-[#111]">
+                <select
+                    value={selectedSession}
+                    onChange={(e) => setSelectedSession(e.target.value)}
+                    className="bg-transparent text-[#a1a1aa] hover:text-white text-sm py-2 pl-3 pr-8 focus:outline-none focus:ring-1 focus:ring-[#f97316] appearance-none rounded-md"
+                    style={{
+                        backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2371717a%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E")',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 8px center'
+                    }}
+                >
+                    <option value="current" className="bg-[#2d2d2d] text-white">Current Session (Live)</option>
+                    {uniqueSessions.map(s => {
+                        if (s === (config?.sessionId || "default")) return null;
+                        const dateNum = parseInt(s);
+                        const label = isNaN(dateNum) ? s : new Date(dateNum).toLocaleString();
+                        return <option value={s} key={s} className="bg-[#2d2d2d] text-white">Past: {label}</option>
+                    })}
+                </select>
+            </div>
         </div>
       </div>
 
@@ -691,14 +728,28 @@ export default function AdminContestPage() {
                             )}
                         </TableCell>
                         <TableCell className="text-right">
-                            <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setDrawerParticipant(p)}
-                            className="text-xs h-8 border-[#333] hover:bg-[#222]"
-                            >
-                            View Code
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                                <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDrawerParticipant(p)}
+                                className="text-xs h-8 border-[#333] hover:bg-[#222]"
+                                >
+                                View Code
+                                </Button>
+                                <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => {
+                                    if(window.confirm("Are you sure you want to permanently delete this participant?")) {
+                                        deleteParticipant(p.id);
+                                    }
+                                }}
+                                className="h-8 w-8 border-[#333] hover:bg-red-900/30 hover:border-red-900 text-[#71717a] hover:text-red-500"
+                                >
+                                <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </TableCell>
                         </TableRow>
                     ))
