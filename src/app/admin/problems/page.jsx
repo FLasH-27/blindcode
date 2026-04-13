@@ -64,11 +64,18 @@ export default function ProblemsPage() {
 
   const handleOpenEditForm = (problem) => {
     setEditingProblem(problem);
+    
+    // Auto-clean any lingering markdown artifacts from old records
+    const cleanText = (text) => {
+        if (!text) return "";
+        return text.replace(/\*\*/g, '').replace(/\\\[/g, '[').replace(/\\\]/g, ']').replace(/\\_/g, '_');
+    };
+
     setFormData({
       title: problem.title || "",
-      description: problem.description || "",
-      examples: problem.examples || "",
-      hints: problem.hints || ""
+      description: cleanText(problem.description),
+      examples: cleanText(problem.examples),
+      hints: cleanText(problem.hints)
     });
     setIsFormOpen(true);
   };

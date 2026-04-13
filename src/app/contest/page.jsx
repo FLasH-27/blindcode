@@ -194,6 +194,14 @@ function ContestPage() {
     if (activeTab === "Examples") content = problem.examples;
     if (activeTab === "Hints") content = problem.hints;
 
+    // Clean any lingering markdown artifacts from old database imports
+    if (content) {
+        content = content.replace(/\*\*/g, '');
+        content = content.replace(/\\\[/g, '[');
+        content = content.replace(/\\\]/g, ']');
+        content = content.replace(/\\_/g, '_');
+    }
+
     return (
       <div className="whitespace-pre-wrap font-sans text-[#d4d4d4] text-[14px] leading-[1.7]">
         {content}
@@ -294,7 +302,14 @@ function ContestPage() {
             </select>
           </div>
           
-          <div className="flex-1 min-h-0 relative h-full w-full pt-10">
+          <div 
+            className="flex-1 min-h-0 relative h-full w-full pt-10"
+            // TEMPORARY BYPASS FOR TESTING: Uncomment this before deployment!
+            // onPasteCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onCopyCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onCutCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onContextMenu={(e) => e.preventDefault()}
+          >
             <Editor
               height="100%"
               theme="vs-dark"
@@ -316,7 +331,8 @@ function ContestPage() {
                 hover: { enabled: false },
                 lightbulb: { enabled: false },
                 inlayHints: { enabled: false },
-                renderValidationDecorations: "off"
+                renderValidationDecorations: "off",
+                contextmenu: false
               }}
             />
           </div>

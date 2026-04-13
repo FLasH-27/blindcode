@@ -52,12 +52,18 @@ export async function POST(req) {
     
     let rawText = turndownService.turndown(content || "");
     
+    // Strip bolding asterisks and markdown escaped brackets which look ugly in plain text
+    rawText = rawText.replace(/\*\*/g, '');
+    rawText = rawText.replace(/\\\[/g, '[');
+    rawText = rawText.replace(/\\\]/g, ']');
+    rawText = rawText.replace(/\\_/g, '_');
+    
     // Attempt to split description and examples
     let description = rawText;
     let examples = "";
 
-    // Leetcode often uses Example 1: or **Example 1:**
-    const exampleTags = ["**Example 1:**", "Example 1:", "### Example 1:"];
+    // Leetcode often uses Example 1:
+    const exampleTags = ["Example 1:", "### Example 1:", "Example 1"];
     let splitIndex = -1;
     
     for (const tag of exampleTags) {
