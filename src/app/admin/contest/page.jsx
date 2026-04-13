@@ -508,7 +508,7 @@ export default function AdminContestPage() {
     });
 
     return result;
-  }, [participants, searchQuery, sortOrder]);
+  }, [participants, searchQuery, sortOrder, selectedSession, config?.sessionId]);
 
   if (loading) {
     return (
