@@ -6,7 +6,7 @@ import { getParticipant } from "@/lib/participants";
 import { listenToContestConfig } from "@/lib/contest";
 import { Loader2 } from "lucide-react";
 
-export default function ParticipantGuard({ children }) {
+export default function LobbyGuard({ children }) {
   const router = useRouter();
   const [isValidated, setIsValidated] = useState(false);
 
@@ -28,20 +28,21 @@ export default function ParticipantGuard({ children }) {
           return;
         }
 
-        // Participant is valid, now check phase
         unsubConfig = listenToContestConfig((config) => {
            if (config.phase === "idle") {
                router.replace("/join");
-           } else if (config.phase === "joining") {
-               router.replace("/lobby");
+           } else if (config.phase === "active") {
+               router.replace("/contest");
+           } else if (config.phase === "ended") {
+               router.replace("/join?ended=1");
            } else {
-               // active or ended -> allow through (ended is handled visually in contest page)
+               // phase === "joining"
                setIsValidated(true);
            }
         });
 
       } catch (error) {
-        console.error("Error verifying participant:", error);
+        console.error("Error verifying participant for lobby:", error);
         localStorage.removeItem("participantId");
         router.replace("/join");
       }
@@ -58,7 +59,7 @@ export default function ParticipantGuard({ children }) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center space-y-4">
         <Loader2 className="w-8 h-8 text-[#71717a] animate-spin" />
-        <p className="text-[#71717a] text-sm">Evaluating contest phase...</p>
+        <p className="text-[#71717a] text-sm">Authenticating lobby...</p>
       </div>
     );
   }

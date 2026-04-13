@@ -9,7 +9,6 @@ import {
   updateDoc, 
   onSnapshot, 
   serverTimestamp,
-  query,
   increment,
   arrayUnion,
   deleteDoc
@@ -35,14 +34,14 @@ export const getParticipant = async (participantId) => {
 
 export const createOrResumeParticipant = async (rollId, name) => {
   try {
-    // 0. Get active session ID
+    // 0. Get active session ID from contest config
     const configSnap = await getDoc(doc(db, "contest", CONTEST_DOC));
     const sessionId = configSnap.exists() ? (configSnap.data().sessionId || "default") : "default";
 
     // Create a deterministic participant ID for this session & rollId
     const participantDocId = `${sessionId}_${rollId}`;
     
-    // Check if resuming
+    // Check if resuming an existing participant
     const docRef = doc(db, PARTICIPANTS_COLLECTION, participantDocId);
     const existingSnap = await getDoc(docRef);
     if (existingSnap.exists()) {
@@ -50,51 +49,11 @@ export const createOrResumeParticipant = async (rollId, name) => {
       return participantDocId;
     }
 
-    // 1. Fetch all problems to get IDs
-    const problemsQuery = query(collection(db, PROBLEMS_COLLECTION));
-    const problemsSnapshot = await getDocs(problemsQuery);
-    const problemIds = problemsSnapshot.docs.map(d => d.id);
-    
-    if (problemIds.length === 0) {
-      throw new Error("No problems available to assign.");
-    }
-
-    // 2. Fetch all participants to build frequency map
-    const participantsQuery = query(collection(db, PARTICIPANTS_COLLECTION));
-    const participantsSnapshot = await getDocs(participantsQuery);
-    
-    const frequencyMap = {};
-    problemIds.forEach(id => { frequencyMap[id] = 0; });
-    
-    participantsSnapshot.docs.forEach(d => {
-      const data = d.data();
-      if (!data.sessionId || data.sessionId === sessionId) { // count legacy as current or strictly current
-        const pId = data.problemId;
-        if (frequencyMap[pId] !== undefined) {
-          frequencyMap[pId]++;
-        }
-      }
-    });
-
-    // 3. Find minimum count
-    let minCount = Infinity;
-    Object.values(frequencyMap).forEach(count => {
-      if (count < minCount) {
-        minCount = count;
-      }
-    });
-
-    // 4. Collect all problemIds with minimum count
-    const minProblems = Object.keys(frequencyMap).filter(id => frequencyMap[id] === minCount);
-
-    // 5. Pick randomly
-    const assignedProblemId = minProblems[Math.floor(Math.random() * minProblems.length)];
-
-    // 6. Create participant
+    // Create new participant — problemId is null until admin starts contest
     await setDoc(docRef, {
       name: name.trim(),
       rollId,
-      problemId: assignedProblemId,
+      problemId: null,
       code: "",
       language: "python",
       lastSavedAt: null,
@@ -107,6 +66,43 @@ export const createOrResumeParticipant = async (rollId, name) => {
     return participantDocId;
   } catch (error) {
     console.error("Error creating participant:", error);
+    throw error;
+  }
+};
+
+/**
+ * Called when admin starts the contest.
+ * Distributes all available problems evenly across lobby participants
+ * using round-robin (fair distribution by index).
+ */
+export const assignProblemsToParticipants = async (sessionId) => {
+  try {
+    // 1. Fetch all participants in this session
+    const participantsSnap = await getDocs(collection(db, PARTICIPANTS_COLLECTION));
+    const sessionParticipants = participantsSnap.docs
+      .filter(d => d.data().sessionId === sessionId)
+      .map(d => ({ id: d.id, ...d.data() }));
+
+    if (sessionParticipants.length === 0) return;
+
+    // 2. Fetch all available problems
+    const problemsSnap = await getDocs(collection(db, PROBLEMS_COLLECTION));
+    const problemIds = problemsSnap.docs.map(d => d.id);
+
+    if (problemIds.length === 0) return;
+
+    // 3. Round-robin assignment: participant[i] gets problem[i % total_problems]
+    const updates = sessionParticipants.map((participant, index) => {
+      const assignedProblemId = problemIds[index % problemIds.length];
+      return updateDoc(doc(db, PARTICIPANTS_COLLECTION, participant.id), {
+        problemId: assignedProblemId
+      });
+    });
+
+    await Promise.all(updates);
+    console.log(`Assigned problems to ${sessionParticipants.length} participants (${problemIds.length} unique problems).`);
+  } catch (error) {
+    console.error("Error assigning problems to participants:", error);
     throw error;
   }
 };

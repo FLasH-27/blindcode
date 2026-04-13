@@ -27,7 +27,7 @@ export const ensureContestConfig = async () => {
 
     if (!snapshot.exists()) {
       await setDoc(docRef, {
-        status: "idle",
+        phase: "idle",
         startedAt: null,
         endedAt: null,
         totalProblems: 0,
@@ -41,22 +41,76 @@ export const ensureContestConfig = async () => {
 };
 
 /**
- * Starts the contest by setting status to "active" and recording the start time.
+ * Opens the joining window logic
+ */
+export const openJoiningWindow = async (durationMinutes = 10) => {
+  try {
+    const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
+    const now = Date.now();
+    const endsAt = now + durationMinutes * 60 * 1000;
+    const sessionId = now.toString(); // Lock in sessionId at joining time
+    
+    await updateDoc(docRef, {
+      phase: "joining",
+      joiningStartedAt: serverTimestamp(),
+      joiningEndsAt: endsAt,
+      joiningWindowMinutes: durationMinutes,
+      sessionId: sessionId // Set here so lobby participants belong to this session
+    });
+  } catch (error) {
+    console.error("Error opening joining window:", error);
+    throw error;
+  }
+};
+
+/**
+ * Extend the joining window
+ */
+export const extendJoiningWindow = async (additionalMinutes = 5) => {
+  try {
+    const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
+    const snapshot = await getDoc(docRef);
+    if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.joiningEndsAt) {
+            const newEndsAt = data.joiningEndsAt + (additionalMinutes * 60 * 1000);
+            await updateDoc(docRef, {
+                joiningEndsAt: newEndsAt
+            });
+        }
+    }
+  } catch (error) {
+    console.error("Error extending joining window:", error);
+    throw error;
+  }
+};
+
+/**
+ * Starts the contest by setting phase to "active" and recording the start time.
  */
 export const startContest = async (durationMinutes = 60) => {
   try {
     const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
     const now = Date.now();
     const endsAt = now + durationMinutes * 60 * 1000;
-    const sessionId = now.toString();
+
+    // Reuse the sessionId set when the joining window was opened
+    const configSnap = await getDoc(docRef);
+    const sessionId = (configSnap.exists() && configSnap.data().sessionId)
+      ? configSnap.data().sessionId
+      : now.toString();
     
     await updateDoc(docRef, {
-      status: "active",
+      phase: "active",
       startedAt: serverTimestamp(),
       endsAt: endsAt,
       durationMinutes: durationMinutes,
       sessionId: sessionId
     });
+
+    // Distribute problems evenly across all lobby participants
+    const { assignProblemsToParticipants } = await import("./participants");
+    await assignProblemsToParticipants(sessionId);
   } catch (error) {
     console.error("Error starting contest:", error);
     throw error;
@@ -64,13 +118,13 @@ export const startContest = async (durationMinutes = 60) => {
 };
 
 /**
- * Ends the contest by setting status to "ended" and recording the end time.
+ * Ends the contest by setting phase to "ended" and recording the end time.
  */
 export const endContest = async () => {
   try {
     const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
     await updateDoc(docRef, {
-      status: "ended",
+      phase: "ended",
       endedAt: serverTimestamp(),
     });
   } catch (error) {
@@ -86,9 +140,12 @@ export const resetContest = async () => {
   try {
     const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
     await updateDoc(docRef, {
-      status: "idle",
+      phase: "idle",
       startedAt: null,
       endedAt: null,
+      joiningStartedAt: null,
+      joiningEndsAt: null,
+      joiningWindowMinutes: null
     });
   } catch (error) {
     console.error("Error resetting contest:", error);
@@ -109,12 +166,12 @@ export const listenToContestConfig = (callback) => {
       if (snapshot.exists()) {
         callback(snapshot.data());
       } else {
-        callback({ status: "idle", startedAt: null, endedAt: null, totalProblems: 0, sessionId: "default" });
+        callback({ phase: "idle", startedAt: null, endedAt: null, totalProblems: 0, sessionId: "default" });
       }
     },
     (error) => {
       console.error("Error listening to contest config:", error);
-      callback({ status: "idle", startedAt: null, endedAt: null, totalProblems: 0, sessionId: "default" });
+      callback({ phase: "idle", startedAt: null, endedAt: null, totalProblems: 0, sessionId: "default" });
     }
   );
 };

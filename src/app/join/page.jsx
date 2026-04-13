@@ -19,19 +19,37 @@ export default function JoinPage() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    // 1. Initial localstorage check
-    const existingId = localStorage.getItem("participantId");
-    
-    // 2. Realtime listener for contest status
+    // Realtime listener for contest phase — reads localStorage fresh each time
+    // so stale session IDs from previous contests are always detected and cleared.
     const unsubscribe = listenToContest((data) => {
-        setContestStatus(data.status);
+        const phase = data.phase || "idle";
+        setContestStatus(phase);
         const activeSessionId = data.sessionId || "default";
 
-        if (existingId && data.status === "active") {
-          if (existingId.startsWith(activeSessionId + "_")) {
-            router.push("/contest");
-          } else {
-            localStorage.removeItem("participantId");
+        const storedId = localStorage.getItem("participantId");
+
+        if (storedId) {
+          const belongsToCurrentSession = storedId.startsWith(activeSessionId + "_");
+
+          if (phase === "active") {
+            if (belongsToCurrentSession) {
+              router.push("/contest");
+            } else {
+              // Old session ID — clear it so user logs in fresh
+              localStorage.removeItem("participantId");
+            }
+          } else if (phase === "joining") {
+            if (belongsToCurrentSession) {
+              router.push("/lobby");
+            } else {
+              // Stale ID from a past session — wipe it, let them re-login
+              localStorage.removeItem("participantId");
+            }
+          } else if (phase === "idle" || phase === "ended") {
+            // Contest reset or ended — if their ID is from an old session, clear it
+            if (!belongsToCurrentSession) {
+              localStorage.removeItem("participantId");
+            }
           }
         }
     });
@@ -51,8 +69,13 @@ export default function JoinPage() {
       return;
     }
 
-    if (contestStatus !== "active") {
-      setErrorMsg("Contest is not active yet.");
+    if (contestStatus === "idle") {
+      setErrorMsg("Contest has not started yet.");
+      return;
+    }
+
+    if (contestStatus === "ended") {
+      setErrorMsg("Contest has ended.");
       return;
     }
 
@@ -67,7 +90,12 @@ export default function JoinPage() {
 
       const newId = await createOrResumeParticipant(rollId.trim(), name.trim());
       localStorage.setItem("participantId", newId);
-      router.push("/contest");
+      
+      if (contestStatus === "joining") {
+          router.push("/lobby");
+      } else {
+          router.push("/contest");
+      }
     } catch (err) {
       console.error(err);
       setErrorMsg(err.message || "Failed to join. Try again.");
@@ -92,10 +120,18 @@ export default function JoinPage() {
         </div>
       );
     }
+    if (contestStatus === "joining") {
+      return (
+        <div className="flex items-center justify-center space-x-2 mt-4 text-sm text-[#71717a]">
+          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+          <span className="text-blue-500/80">Joining window is open</span>
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center space-x-2 mt-4 text-sm text-[#71717a]">
         <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-        <span>Waiting for contest to start</span>
+        <span>Waiting for window to open</span>
       </div>
     );
   };

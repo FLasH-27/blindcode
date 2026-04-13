@@ -61,8 +61,8 @@ function LiveStats() {
       const unsubConfig = onSnapshot(
         doc(db, "contest", "config"),
         (docSnap) => {
-          if (docSnap.exists() && docSnap.data().status) {
-            setStatus(docSnap.data().status);
+          if (docSnap.exists() && docSnap.data().phase) {
+            setStatus(docSnap.data().phase);
           }
         },
         () => setHasError(true)

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import ParticipantGuard from "@/components/ParticipantGuard";
 import { getParticipant, getProblem, listenToContest, updateCode, updateLanguage, logTabSwitch, submitContestEarly } from "@/lib/participants";
+import { db } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -31,29 +33,38 @@ function ContestPage() {
 
   // Debouncing logic
   const saveTimeoutRef = useRef(null);
+  // Track whether problem has been loaded to avoid duplicate fetches in onSnapshot
+  const problemLoadedRef = useRef(false);
 
   useEffect(() => {
+    const pId = localStorage.getItem("participantId");
+    if (!pId) return;
+
     const init = async () => {
       try {
-        const pId = localStorage.getItem("participantId");
-        if(!pId) return;
-
         const pData = await getParticipant(pId);
-        if(pData) {
+        if (pData) {
           setParticipant(pData);
           setCode(pData.code || "");
           setLanguage(pData.language || "javascript");
-          if(pData.lastSavedAt) {
-              setLastSaved(pData.lastSavedAt.toDate());
+          if (pData.lastSavedAt) {
+            setLastSaved(pData.lastSavedAt.toDate());
           }
-          if(pData.submittedAt) {
-              setIsSubmitted(true);
+          if (pData.submittedAt) {
+            setIsSubmitted(true);
           }
           setTabSwitchCount(pData.tabSwitchCount || 0);
-          
-          const probData = await getProblem(pData.problemId);
-          setProblem(probData);
-          setIsReady(true);
+
+          // Only load problem if it's already assigned (not null)
+          if (pData.problemId) {
+            const probData = await getProblem(pData.problemId);
+            setProblem(probData);
+            setIsReady(true);
+            problemLoadedRef.current = true;
+          } else {
+            // Problem not yet assigned — wait for real-time update below
+            setIsReady(false);
+          }
         }
       } catch (error) {
         console.error("Error initializing contest page:", error);
@@ -61,16 +72,38 @@ function ContestPage() {
     };
     init();
 
-    const unsubscribe = listenToContest((data) => {
-        setContestStatus(data.status);
-        if (data.endsAt) {
-          setEndsAt(data.endsAt);
-        } else {
-          setEndsAt(null);
+    // Real-time listener on THIS participant's document.
+    // When admin starts contest, problemId gets written — we detect and load it.
+    const participantRef = doc(db, "participants", pId);
+    const unsubParticipant = onSnapshot(participantRef, async (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      // Fire only once when problemId appears for the first time
+      if (data.problemId && !problemLoadedRef.current) {
+        problemLoadedRef.current = true;
+        try {
+          const probData = await getProblem(data.problemId);
+          setProblem(probData);
+          setIsReady(true);
+        } catch (err) {
+          console.error("Error loading assigned problem:", err);
         }
+      }
     });
-    
-    return () => unsubscribe();
+
+    const unsubContest = listenToContest((data) => {
+      setContestStatus(data.phase || data.status || "idle");
+      if (data.endsAt) {
+        setEndsAt(data.endsAt);
+      } else {
+        setEndsAt(null);
+      }
+    });
+
+    return () => {
+      unsubParticipant();
+      unsubContest();
+    };
   }, []);
 
   // Timer Effect
@@ -182,7 +215,8 @@ function ContestPage() {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center space-y-4">
         <Loader2 className="w-8 h-8 text-[#71717a] animate-spin" />
-        <p className="text-[#71717a] text-sm">Loading problem...</p>
+        <p className="text-[#71717a] text-sm">Waiting for problem assignment...</p>
+        <p className="text-[#444] text-xs">The organiser will start the contest shortly</p>
       </div>
     );
   }

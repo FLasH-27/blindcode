@@ -8,6 +8,8 @@ import {
   startContest,
   endContest,
   resetContest,
+  openJoiningWindow,
+  extendJoiningWindow
 } from "@/lib/contest";
 import { subscribeToProblems } from "@/lib/problems";
 import { saveEvaluation, deleteParticipant } from "@/lib/participants";
@@ -62,8 +64,8 @@ function formatDuration(ms) {
 
 // ─── Status Badge ───────────────────────────────────────────────────────────
 
-function StatusBadge({ status }) {
-  if (status === "active") {
+function StatusBadge({ phase }) {
+  if (phase === "active") {
     return (
       <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#052e16] text-[#22c55e] border border-[#166534] text-sm font-semibold">
         <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
@@ -71,7 +73,15 @@ function StatusBadge({ status }) {
       </span>
     );
   }
-  if (status === "ended") {
+  if (phase === "joining") {
+    return (
+      <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0a1628] text-[#3b82f6] border border-[#1e3a5f] text-sm font-semibold">
+        <span className="w-2 h-2 rounded-full bg-[#3b82f6] animate-pulse" />
+        Joining Open
+      </span>
+    );
+  }
+  if (phase === "ended") {
     return (
       <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1c0a0a] text-[#ef4444] border border-[#7f1d1d] text-sm font-semibold">
         Ended
@@ -380,11 +390,17 @@ export default function AdminContestPage() {
   const [timeLeft, setTimeLeft] = useState(null);
 
   // Dialog states
+  const [showJoiningDialog, setShowJoiningDialog] = useState(false);
+  const [showExtendDialog, setShowExtendDialog] = useState(false);
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
+  
+  const [joiningDuration, setJoiningDuration] = useState(10);
+  const [extendMinutes, setExtendMinutes] = useState(5);
   const [duration, setDuration] = useState(60);
 
   // Drawer state
@@ -421,25 +437,59 @@ export default function AdminContestPage() {
 
   // Timer logic
   useEffect(() => {
-    if (config?.status !== "active" || !config?.endsAt) {
+    if ((config?.phase !== "active" && config?.phase !== "joining")) {
       setTimeLeft(null);
       return;
     }
     
     const interval = setInterval(() => {
       const now = Date.now();
-      const endsAt = typeof config.endsAt === 'number' ? config.endsAt : (config.endsAt.toDate ? config.endsAt.toDate().getTime() : new Date(config.endsAt).getTime());
-      const remaining = Math.max(0, endsAt - now);
+      let targetAt = null;
       
+      if (config.phase === "active" && config.endsAt) {
+          targetAt = typeof config.endsAt === 'number' ? config.endsAt : (config.endsAt.toDate ? config.endsAt.toDate().getTime() : new Date(config.endsAt).getTime());
+      } else if (config.phase === "joining" && config.joiningEndsAt) {
+          targetAt = typeof config.joiningEndsAt === 'number' ? config.joiningEndsAt : (config.joiningEndsAt.toDate ? config.joiningEndsAt.toDate().getTime() : new Date(config.joiningEndsAt).getTime());
+      }
+
+      if (!targetAt) return;
+
+      const remaining = Math.max(0, targetAt - now);
       setTimeLeft(remaining);
       
-      if (remaining <= 0) {
+      if (remaining <= 0 && config.phase === "active") {
         handleEndContest();
       }
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [config?.status, config?.endsAt]);
+  }, [config?.phase, config?.endsAt, config?.joiningEndsAt]);
+
+  const handleOpenJoiningWindow = useCallback(async () => {
+    setActionLoading(true);
+    setActionError("");
+    try {
+      await openJoiningWindow(joiningDuration);
+      setShowJoiningDialog(false);
+    } catch (error) {
+      setActionError("Failed to open joining window. Please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [joiningDuration]);
+
+  const handleExtendJoiningWindow = useCallback(async () => {
+    setActionLoading(true);
+    setActionError("");
+    try {
+      await extendJoiningWindow(extendMinutes);
+      setShowExtendDialog(false);
+    } catch (error) {
+      setActionError("Failed to extend joining window. Please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [extendMinutes]);
 
   const handleStartContest = useCallback(async () => {
     setActionLoading(true);
@@ -518,7 +568,7 @@ export default function AdminContestPage() {
     );
   }
 
-  const status = config?.status || "idle";
+  const phase = config?.phase || "idle";
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -529,18 +579,34 @@ export default function AdminContestPage() {
       <div className="bg-[#111] border border-[#222] rounded-lg p-6 mb-8">
         <div className="flex items-start justify-between">
           <div className="space-y-4">
-            <StatusBadge status={status} />
+            <StatusBadge phase={phase} />
 
-            {status === "idle" && (
+            {phase === "idle" && (
               <p className="text-[#71717a] text-sm">
-                No contest is currently running.
+                No contest or joining window is currently active.
               </p>
             )}
 
-            {status === "active" && (
+            {phase === "joining" && (
               <div className="space-y-2">
                 <div className="flex flex-col">
-                    <span className="text-[#71717a] text-xs uppercase tracking-wider font-semibold mb-1">Time Remaining</span>
+                    <span className="text-[#3b82f6] text-xs uppercase tracking-wider font-semibold mb-1">Joining Closes In</span>
+                    <div className={`text-4xl font-mono font-bold tabular-nums ${timeLeft < 60000 ? 'text-red-500 animate-pulse' : timeLeft < 120000 ? 'text-[#f97316]' : 'text-white'}`}>
+                        {formatDuration(timeLeft)}
+                    </div>
+                </div>
+                <div className="space-y-1 pt-2">
+                    <p className="text-[#3b82f6] text-sm font-medium">
+                    {filteredAndSortedParticipants.length} participant{filteredAndSortedParticipants.length !== 1 ? "s" : ""} joined so far
+                    </p>
+                </div>
+              </div>
+            )}
+
+            {phase === "active" && (
+              <div className="space-y-2">
+                <div className="flex flex-col">
+                    <span className="text-[#71717a] text-xs uppercase tracking-wider font-semibold mb-1">Contest Time Remaining</span>
                     <div className={`text-4xl font-mono font-bold tabular-nums ${timeLeft < 60000 ? 'text-red-500 animate-pulse' : timeLeft < 300000 ? 'text-red-500' : 'text-white'}`}>
                         {formatDuration(timeLeft)}
                     </div>
@@ -559,7 +625,7 @@ export default function AdminContestPage() {
               </div>
             )}
 
-            {status === "ended" && (
+            {phase === "ended" && (
               <div className="space-y-1">
                 <p className="text-[#71717a] text-sm">
                   Ended at:{" "}
@@ -574,38 +640,66 @@ export default function AdminContestPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 ml-6">
-            <Button
-              onClick={() => setShowStartDialog(true)}
-              disabled={status !== "idle"}
-              className={
-                status === "idle"
-                  ? "bg-[#f97316] text-black hover:bg-[#ea580c] font-semibold"
-                  : "opacity-40 cursor-not-allowed"
-              }
-            >
-              Start Contest
-            </Button>
+          <div className="flex flex-col items-end gap-3 shrink-0 ml-6">
+            <div className="flex items-center gap-3">
+              {phase === "idle" && (
+                <Button
+                  onClick={() => setShowJoiningDialog(true)}
+                  className="bg-[#f97316] text-black hover:bg-[#ea580c] font-semibold"
+                >
+                  Open Joining Window
+                </Button>
+              )}
 
-            <Button
-              variant="destructive"
-              onClick={() => setShowEndDialog(true)}
-              disabled={status !== "active"}
-              className={
-                status !== "active" ? "opacity-40 cursor-not-allowed" : ""
-              }
-            >
-              End Contest
-            </Button>
+              {phase === "joining" && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowExtendDialog(true)}
+                    className="border-[#333] text-[#a1a1aa] hover:text-white"
+                  >
+                    Extend Joining Time
+                  </Button>
+                  <Button
+                    onClick={() => setShowStartDialog(true)}
+                    className="bg-[#f97316] text-black hover:bg-[#ea580c] font-semibold"
+                  >
+                    Start Contest
+                  </Button>
+                </>
+              )}
 
-            {status === "ended" && (
-              <Button
-                variant="outline"
-                onClick={() => setShowResetDialog(true)}
-                className="text-[#71717a] hover:text-white border-[#333]"
-              >
-                Reset Contest
-              </Button>
+              {phase === "active" && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowEndDialog(true)}
+                >
+                  End Contest
+                </Button>
+              )}
+
+              {phase === "ended" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowResetDialog(true)}
+                  className="text-[#71717a] hover:text-white border-[#333]"
+                >
+                  Reset Contest
+                </Button>
+              )}
+            </div>
+
+            {phase === "joining" && (
+                <button 
+                  onClick={() => {
+                      if (window.confirm("This will close the joining window and reset the contest. Participant data will be kept. Continue?")) {
+                          handleResetContest();
+                      }
+                  }}
+                  className="text-red-500 hover:text-red-400 text-xs font-medium mt-1 mr-1 underline decoration-red-500/30 underline-offset-2"
+                >
+                    Cancel & Reset
+                </button>
             )}
           </div>
         </div>
@@ -863,6 +957,100 @@ export default function AdminContestPage() {
             >
               {actionLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               Reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showJoiningDialog} onOpenChange={setShowJoiningDialog}>
+        <DialogContent className="bg-[#111] border-[#222]">
+          <DialogHeader>
+            <DialogTitle className="text-white">Open Joining Window</DialogTitle>
+            <DialogDescription className="text-[#71717a]">
+              This will allow participants to join the lobby while they wait for you to start the contest.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-white flex items-center justify-between">
+                    Wait Duration
+                    <span className="text-[#3b82f6] font-bold text-lg">{joiningDuration} <span className="text-xs font-normal">minutes</span></span>
+                </label>
+                <div className="flex items-center gap-4">
+                    <Input 
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={joiningDuration}
+                        onChange={(e) => setJoiningDuration(parseInt(e.target.value) || 1)}
+                        className="bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-[#3b82f6]"
+                    />
+                </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowJoiningDialog(false)}
+              disabled={actionLoading}
+              className="border-[#222] text-white"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOpenJoiningWindow}
+              disabled={actionLoading}
+              className="bg-[#3b82f6] text-white hover:bg-[#2563eb] font-semibold"
+            >
+              {actionLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Open Window
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
+        <DialogContent className="bg-[#111] border-[#222]">
+          <DialogHeader>
+            <DialogTitle className="text-white">Extend Joining Window</DialogTitle>
+            <DialogDescription className="text-[#71717a]">
+              Add additional time to the current joining window countdown.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-white flex items-center justify-between">
+                    Additional Minutes
+                    <span className="text-[#3b82f6] font-bold text-lg">+{extendMinutes} <span className="text-xs font-normal">minutes</span></span>
+                </label>
+                <div className="flex items-center gap-4">
+                    <Input 
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={extendMinutes}
+                        onChange={(e) => setExtendMinutes(parseInt(e.target.value) || 1)}
+                        className="bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-[#3b82f6]"
+                    />
+                </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowExtendDialog(false)}
+              disabled={actionLoading}
+              className="border-[#222] text-white"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleExtendJoiningWindow}
+              disabled={actionLoading}
+              className="bg-[#3b82f6] text-white hover:bg-[#2563eb] font-semibold"
+            >
+              {actionLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Extend Time
             </Button>
           </DialogFooter>
         </DialogContent>
