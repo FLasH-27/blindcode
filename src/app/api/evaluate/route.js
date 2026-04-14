@@ -15,12 +15,12 @@ export async function POST(req) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    
+
     // Using gemini-2.5-flash to avoid 429 quota limits on the Pro tier
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
-You are an expert competitive programming judge for a "Blind Code" competition (participants couldn't run their code while typing). 
+You are an expert competitive programming judge for a "Blind Code" competition (participants are not allowed to compile there program and see output). 
 Review the participant's code below and evaluate it rigidly against the following rubric.
 
 ### Problem Context:
@@ -56,20 +56,20 @@ You MUST output strictly in JSON using the exact schema below. Do NOT output any
     `;
 
     const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
-        }
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.1,
+      }
     });
 
     const responseText = result.response.text();
     let evaluationData;
-    
+
     try {
-        evaluationData = JSON.parse(responseText);
-    } catch(e) {
-        throw new Error("Failed to parse Gemini output as JSON: " + responseText);
+      evaluationData = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error("Failed to parse Gemini output as JSON: " + responseText);
     }
 
     return NextResponse.json(evaluationData);

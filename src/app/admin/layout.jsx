@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Code2, Radio, LogOut, KeyRound } from "lucide-react";
+import { Code2, Radio, LogOut, KeyRound, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AdminGuard from "@/components/AdminGuard";
 import { logoutAdmin } from "@/lib/adminAuth";
@@ -14,6 +14,7 @@ export default function AdminLayout({ children }) {
   const navItems = [
     { name: "Problems", href: "/admin/problems", icon: Code2 },
     { name: "Contest", href: "/admin/contest", icon: Radio },
+    { name: "Leaderboard", href: "/admin/default/leaderboard", icon: Trophy },
     { name: "Credentials", href: "/admin/credentials", icon: KeyRound },
   ];
 

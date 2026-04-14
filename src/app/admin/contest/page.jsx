@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   listenToContestConfig,
@@ -748,6 +749,32 @@ export default function AdminContestPage() {
                     })}
                 </select>
             </div>
+
+            {/* Leaderboard button */}
+            <Link
+              href={`/admin/${selectedSession === "current" && config?.sessionId ? config.sessionId : selectedSession === "current" ? "default" : selectedSession}/leaderboard`}
+              id="leaderboard-btn"
+              style={{
+                border: "1px solid #f97316",
+                color: "#f97316",
+                background: "transparent",
+                borderRadius: "7px",
+                padding: "7px 16px",
+                fontSize: "13px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                lineHeight: 1.4,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(249,115,22,0.08)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              Leaderboard
+            </Link>
         </div>
       </div>
 
@@ -786,7 +813,7 @@ export default function AdminContestPage() {
                     filteredAndSortedParticipants.map((p, idx) => (
                         <TableRow key={p.id} className="border-b-[#1a1a1a] hover:bg-[#161616]">
                         <TableCell className="text-[#71717a] font-medium text-xs">
-                            {participants.findIndex(orig => orig.id === p.id) + 1}
+                            {idx + 1}
                         </TableCell>
                         <TableCell className="text-white font-medium">
                             {p.name}
