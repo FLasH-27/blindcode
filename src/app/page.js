@@ -140,6 +140,7 @@ export default function Home() {
                 loop
                 muted
                 playsInline
+                onContextMenu={(e) => e.preventDefault()}
                 className="w-[280px] h-[280px] md:w-[520px] md:h-[520px] rounded-full object-contain z-10 bg-[#0f0f10]"
               >
                 <source src="./Assets/stickman video.mp4" type="video/mp4" />
