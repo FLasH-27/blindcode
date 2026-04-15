@@ -189,9 +189,9 @@ export default function Home() {
         {/* Organised By Bar */}
         <div className="w-full border-t border-[#111] bg-[#080808] py-0 flex flex-wrap items-center justify-center gap-5 px-6 md:px-0 mt-2 mb-16 ">
           <span className="text-[#444] text-[50px] font-medium tracking-wide">Organized By</span>
-          <img src="./Assets/Nexus logo .png" alt="Nexus" className="h-[120px] w-auto shrink-0" />
+          <img src="./Assets/Nexus logo.webp" alt="Nexus" className="h-[120px] w-auto shrink-0" />
           <span className="text-[#444] text-[50px] font-medium tracking-wide">For</span>
-          <img src="./Assets/avishkar logo .png" alt="Avishkar" className="h-[200px] w-auto shrink-0" />
+          <img src="./Assets/avishkar logo.webp" alt="Avishkar" className="h-[200px] w-auto shrink-0" />
         </div>
 
         {/* Rules Section (Terminal) */}
