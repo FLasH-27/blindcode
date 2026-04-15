@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { Pencil, Trash2, Plus, Loader2 } from "lucide-react";
 
@@ -32,12 +32,16 @@ export default function ProblemsPage() {
   const [loading, setLoading] = useState(true);
   const [lcUrl, setLcUrl] = useState("");
   const [fetchingLc, setFetchingLc] = useState(false);
+
+  // Round tab state
+  const [activeRound, setActiveRound] = useState(1);
   
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     examples: "",
-    hints: ""
+    hints: "",
+    round: 1
   });
 
   // Subscribe to real-time events
@@ -49,16 +53,25 @@ export default function ProblemsPage() {
     return () => unsubscribe();
   }, []);
 
+  // Filter problems by active round
+  const filteredProblems = useMemo(() => {
+    return problems.filter(p => (p.round || 1) === activeRound);
+  }, [problems, activeRound]);
+
+  // Per-round counts
+  const round1Count = useMemo(() => problems.filter(p => (p.round || 1) === 1).length, [problems]);
+  const round2Count = useMemo(() => problems.filter(p => (p.round || 1) === 2).length, [problems]);
+
   // Reset form when dialog closes/opens
   useEffect(() => {
     if (!isFormOpen && !editingProblem) {
-        setFormData({ title: "", description: "", examples: "", hints: "" });
+        setFormData({ title: "", description: "", examples: "", hints: "", round: activeRound });
     }
-  }, [isFormOpen, editingProblem]);
+  }, [isFormOpen, editingProblem, activeRound]);
 
   const handleOpenAddForm = () => {
     setEditingProblem(null);
-    setFormData({ title: "", description: "", examples: "", hints: "" });
+    setFormData({ title: "", description: "", examples: "", hints: "", round: activeRound });
     setIsFormOpen(true);
   };
 
@@ -75,7 +88,8 @@ export default function ProblemsPage() {
       title: problem.title || "",
       description: cleanText(problem.description),
       examples: cleanText(problem.examples),
-      hints: cleanText(problem.hints)
+      hints: cleanText(problem.hints),
+      round: problem.round || 1
     });
     setIsFormOpen(true);
   };
@@ -102,7 +116,8 @@ export default function ProblemsPage() {
         title: data.title || formData.title,
         description: data.description || formData.description,
         examples: data.examples || formData.examples,
-        hints: data.hints || formData.hints
+        hints: data.hints || formData.hints,
+        round: formData.round
       });
       setLcUrl("");
     } catch (err) {
@@ -141,28 +156,55 @@ export default function ProblemsPage() {
     }
   };
 
-  const problemCountInfo = (
-    <span className={`px-3 py-1 rounded-full text-xs font-semibold ml-3 border ${
-        problems.length >= 20 
-        ? "bg-green-500/10 text-green-500 border-green-500/20" 
-        : "bg-orange-500/10 text-[#f97316] border-orange-500/20"
-    }`}>
-      {problems.length} / 20 Problems
-    </span>
-  );
-
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-xl font-semibold text-white flex items-center">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-semibold text-white">
           Problem Management
-          {problemCountInfo}
         </h1>
         
         <Button onClick={handleOpenAddForm} className="bg-[#f97316] text-black hover:bg-[#ea580c] font-semibold">
           <Plus className="w-4 h-4 mr-2" />
           Add Problem
         </Button>
+      </div>
+
+      {/* ── Round Tabs ──────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 mb-6 bg-[#111] rounded-lg border border-[#222] p-1 w-fit">
+        <button
+          onClick={() => setActiveRound(1)}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeRound === 1
+              ? "bg-[#f97316] text-black shadow-sm"
+              : "text-[#71717a] hover:text-white hover:bg-[#1a1a1a]"
+          }`}
+        >
+          Round 1
+          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
+            activeRound === 1 
+              ? "bg-black/20 text-black" 
+              : "bg-[#222] text-[#71717a]"
+          }`}>
+            {round1Count}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveRound(2)}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            activeRound === 2
+              ? "bg-[#f97316] text-black shadow-sm"
+              : "text-[#71717a] hover:text-white hover:bg-[#1a1a1a]"
+          }`}
+        >
+          Round 2
+          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
+            activeRound === 2 
+              ? "bg-black/20 text-black" 
+              : "bg-[#222] text-[#71717a]"
+          }`}>
+            {round2Count}
+          </span>
+        </button>
       </div>
 
       <div className="bg-[#111] rounded-lg border border-[#222] overflow-hidden">
@@ -172,6 +214,7 @@ export default function ProblemsPage() {
                 <TableRow className="hover:bg-transparent border-b-[#222]">
                 <TableHead className="w-[80px]">#</TableHead>
                 <TableHead>Title</TableHead>
+                <TableHead>Round</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -179,24 +222,33 @@ export default function ProblemsPage() {
             <TableBody>
                 {loading ? (
                     <TableRow>
-                        <TableCell colSpan={4} className="text-center py-12">
+                        <TableCell colSpan={5} className="text-center py-12">
                             <Loader2 className="w-6 h-6 animate-spin text-[#71717a] mx-auto" />
                         </TableCell>
                     </TableRow>
-                ) : problems.length === 0 ? (
+                ) : filteredProblems.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={4} className="text-center py-12 text-[#71717a]">
-                    No problems configured yet. Add your first problem.
+                    <TableCell colSpan={5} className="text-center py-12 text-[#71717a]">
+                    No problems for Round {activeRound} yet. Add your first problem.
                     </TableCell>
                 </TableRow>
                 ) : (
-                problems.map((problem, idx) => (
+                filteredProblems.map((problem, idx) => (
                     <TableRow key={problem.id} className="border-b-[#1a1a1a] hover:bg-[#161616]">
                     <TableCell className="font-medium text-[#71717a] text-xs">
                         {idx + 1}
                     </TableCell>
                     <TableCell className="text-white font-medium">
                         {problem.title}
+                    </TableCell>
+                    <TableCell>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                          (problem.round || 1) === 1
+                            ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                            : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                        }`}>
+                          R{problem.round || 1}
+                        </span>
                     </TableCell>
                     <TableCell className="text-[#71717a] text-sm tabular-nums">
                         {problem.createdAt ? format(problem.createdAt.toDate(), "MMM d, yyyy") : 'Just now'}
@@ -248,6 +300,38 @@ export default function ProblemsPage() {
                   </Button>
                 </div>
             )}
+
+            {/* ── Round Selector ───────────────────────────────────── */}
+            <div className="grid gap-2">
+              <label className="text-xs uppercase text-[#71717a] font-bold tracking-wider">
+                Round
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, round: 1 })}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium border transition-all ${
+                    formData.round === 1
+                      ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                      : "bg-[#0a0a0a] text-[#71717a] border-[#222] hover:text-white hover:border-[#333]"
+                  }`}
+                >
+                  Round 1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, round: 2 })}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium border transition-all ${
+                    formData.round === 2
+                      ? "bg-purple-500/15 text-purple-400 border-purple-500/30"
+                      : "bg-[#0a0a0a] text-[#71717a] border-[#222] hover:text-white hover:border-[#333]"
+                  }`}
+                >
+                  Round 2
+                </button>
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <label htmlFor="title" className="text-xs uppercase text-[#71717a] font-bold tracking-wider">
                 Problem Title

@@ -32,6 +32,7 @@ export const ensureContestConfig = async () => {
         endedAt: null,
         totalProblems: 0,
         sessionId: "default",
+        round: 1,
       });
     }
   } catch (error) {
@@ -43,7 +44,7 @@ export const ensureContestConfig = async () => {
 /**
  * Opens the joining window logic
  */
-export const openJoiningWindow = async (durationMinutes = 10) => {
+export const openJoiningWindow = async (durationMinutes = 10, round = 1) => {
   try {
     const docRef = doc(db, CONTEST_COLLECTION, CONTEST_DOC);
     const now = Date.now();
@@ -55,7 +56,8 @@ export const openJoiningWindow = async (durationMinutes = 10) => {
       joiningStartedAt: serverTimestamp(),
       joiningEndsAt: endsAt,
       joiningWindowMinutes: durationMinutes,
-      sessionId: sessionId // Set here so lobby participants belong to this session
+      sessionId: sessionId, // Set here so lobby participants belong to this session
+      round: round
     });
   } catch (error) {
     console.error("Error opening joining window:", error);
@@ -145,7 +147,8 @@ export const resetContest = async () => {
       endedAt: null,
       joiningStartedAt: null,
       joiningEndsAt: null,
-      joiningWindowMinutes: null
+      joiningWindowMinutes: null,
+      round: null
     });
   } catch (error) {
     console.error("Error resetting contest:", error);

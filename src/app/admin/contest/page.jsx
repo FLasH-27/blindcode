@@ -403,6 +403,7 @@ export default function AdminContestPage() {
   const [joiningDuration, setJoiningDuration] = useState(10);
   const [extendMinutes, setExtendMinutes] = useState(5);
   const [duration, setDuration] = useState(60);
+  const [selectedRound, setSelectedRound] = useState(1);
 
   // Drawer state
   const [drawerParticipant, setDrawerParticipant] = useState(null);
@@ -470,14 +471,14 @@ export default function AdminContestPage() {
     setActionLoading(true);
     setActionError("");
     try {
-      await openJoiningWindow(joiningDuration);
+      await openJoiningWindow(joiningDuration, selectedRound);
       setShowJoiningDialog(false);
     } catch (error) {
       setActionError("Failed to open joining window. Please try again.");
     } finally {
       setActionLoading(false);
     }
-  }, [joiningDuration]);
+  }, [joiningDuration, selectedRound]);
 
   const handleExtendJoiningWindow = useCallback(async () => {
     setActionLoading(true);
@@ -586,6 +587,13 @@ export default function AdminContestPage() {
               <p className="text-[#71717a] text-sm">
                 No contest or joining window is currently active.
               </p>
+            )}
+
+            {config?.round && (phase === "joining" || phase === "active") && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#1a1a1a] border border-[#333] text-sm font-medium text-[#a1a1aa]">
+                <span className={`w-1.5 h-1.5 rounded-full ${config.round === 1 ? 'bg-blue-400' : 'bg-purple-400'}`} />
+                Round {config.round}
+              </span>
             )}
 
             {phase === "joining" && (
@@ -994,10 +1002,39 @@ export default function AdminContestPage() {
           <DialogHeader>
             <DialogTitle className="text-white">Open Joining Window</DialogTitle>
             <DialogDescription className="text-[#71717a]">
-              This will allow participants to join the lobby while they wait for you to start the contest.
+              Choose the round and set the wait duration before starting the contest.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-6 space-y-4">
+          <div className="py-6 space-y-5">
+            {/* ── Round Selector ──────────────────────────── */}
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Select Round</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRound(1)}
+                    className={`flex-1 py-2.5 rounded-md text-sm font-semibold border transition-all ${
+                      selectedRound === 1
+                        ? "bg-blue-500/15 text-blue-400 border-blue-500/30 shadow-sm shadow-blue-500/10"
+                        : "bg-[#0a0a0a] text-[#71717a] border-[#222] hover:text-white hover:border-[#333]"
+                    }`}
+                  >
+                    Round 1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRound(2)}
+                    className={`flex-1 py-2.5 rounded-md text-sm font-semibold border transition-all ${
+                      selectedRound === 2
+                        ? "bg-purple-500/15 text-purple-400 border-purple-500/30 shadow-sm shadow-purple-500/10"
+                        : "bg-[#0a0a0a] text-[#71717a] border-[#222] hover:text-white hover:border-[#333]"
+                    }`}
+                  >
+                    Round 2
+                  </button>
+                </div>
+            </div>
+
             <div className="space-y-2">
                 <label className="text-sm font-medium text-white flex items-center justify-between">
                     Wait Duration
@@ -1030,7 +1067,7 @@ export default function AdminContestPage() {
               className="bg-[#3b82f6] text-white hover:bg-[#2563eb] font-semibold"
             >
               {actionLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Open Window
+              Open Window — Round {selectedRound}
             </Button>
           </DialogFooter>
         </DialogContent>

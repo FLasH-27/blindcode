@@ -28,6 +28,7 @@ export const addProblem = async (problemData) => {
   try {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...problemData,
+      round: problemData.round || 1,
       createdAt: serverTimestamp()
     });
     return docRef.id;

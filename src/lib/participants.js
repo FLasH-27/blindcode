@@ -77,7 +77,11 @@ export const createOrResumeParticipant = async (rollId, name) => {
  */
 export const assignProblemsToParticipants = async (sessionId) => {
   try {
-    // 1. Fetch all participants in this session
+    // 1. Get the active round from contest config
+    const configSnap = await getDoc(doc(db, "contest", CONTEST_DOC));
+    const activeRound = configSnap.exists() ? (configSnap.data().round || 1) : 1;
+
+    // 2. Fetch all participants in this session
     const participantsSnap = await getDocs(collection(db, PARTICIPANTS_COLLECTION));
     const sessionParticipants = participantsSnap.docs
       .filter(d => d.data().sessionId === sessionId)
@@ -85,13 +89,18 @@ export const assignProblemsToParticipants = async (sessionId) => {
 
     if (sessionParticipants.length === 0) return;
 
-    // 2. Fetch all available problems
+    // 3. Fetch problems filtered by the active round
     const problemsSnap = await getDocs(collection(db, PROBLEMS_COLLECTION));
-    const problemIds = problemsSnap.docs.map(d => d.id);
+    const problemIds = problemsSnap.docs
+      .filter(d => (d.data().round || 1) === activeRound)
+      .map(d => d.id);
 
-    if (problemIds.length === 0) return;
+    if (problemIds.length === 0) {
+      console.warn(`No problems found for Round ${activeRound}. Skipping assignment.`);
+      return;
+    }
 
-    // 3. Round-robin assignment: participant[i] gets problem[i % total_problems]
+    // 4. Round-robin assignment: participant[i] gets problem[i % total_problems]
     const updates = sessionParticipants.map((participant, index) => {
       const assignedProblemId = problemIds[index % problemIds.length];
       return updateDoc(doc(db, PARTICIPANTS_COLLECTION, participant.id), {
@@ -100,7 +109,7 @@ export const assignProblemsToParticipants = async (sessionId) => {
     });
 
     await Promise.all(updates);
-    console.log(`Assigned problems to ${sessionParticipants.length} participants (${problemIds.length} unique problems).`);
+    console.log(`Assigned Round ${activeRound} problems to ${sessionParticipants.length} participants (${problemIds.length} unique problems).`);
   } catch (error) {
     console.error("Error assigning problems to participants:", error);
     throw error;
