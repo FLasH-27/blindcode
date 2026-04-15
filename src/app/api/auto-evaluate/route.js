@@ -55,14 +55,16 @@ export async function POST(req) {
 
     const problem = problemSnap.data();
 
-    // 3. Build Gemini prompt
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Gemini API Key is missing' }, { status: 500 });
-    }
+    // 3. Setup API Keys for Rotation
+    const geminiKeysRaw = process.env.GEMINI_API_KEYS || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
+    const geminiKeys = geminiKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const groqKeysRaw = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+    const groqKeys = groqKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
+
+    if (geminiKeys.length === 0 && groqKeys.length === 0) {
+      return NextResponse.json({ error: 'No API Keys configured in environment variables' }, { status: 500 });
+    }
 
     const prompt = `
 You are an expert competitive programming judge for a "Blind Code" competition (participants are not allowed to compile there program and see output). 
@@ -100,65 +102,80 @@ You MUST output strictly in JSON using the exact schema below. Do NOT output any
 }
     `;
 
-    // ── Exponential backoff retry ─────────────────────────────────────────────
-    //
-    // When many participants submit simultaneously, Gemini may return 429
-    // (rate limit). Each participant's evaluation is fully independent —
-    // they run in parallel — but we retry individually on failure so no one
-    // silently loses their score.
-    //
-    // Schedule:  attempt 1 → wait 2s+jitter
-    //            attempt 2 → wait 4s+jitter
-    //            attempt 3 → wait 8s+jitter
-    //            attempt 4 → hard fail
-    //
-    // The ±500ms random jitter prevents a "thundering herd" where all
-    // simultaneous retries hit Gemini again at exactly the same moment.
+    // ── Key Rotation Fallback ──────────────────────────────────────────────
+    // Creates a combined sequence of API keys to attempt one by one.
+    // If one hits a rate limit, it seamlessly moves to the next key.
     // ─────────────────────────────────────────────────────────────────────────
-    const MAX_RETRIES = 4;
-    const BASE_DELAY_MS = 2000;
+    const allEndpoints = [
+      ...geminiKeys.map(key => ({ provider: 'gemini', key })),
+      ...groqKeys.map(key => ({ provider: 'groq', key }))
+    ];
 
     let evaluationData = null;
     let lastError = null;
 
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      try {
-        const result = await model.generateContent({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
-          },
-        });
+    for (let i = 0; i < allEndpoints.length; i++) {
+        const { provider, key } = allEndpoints[i];
+        try {
+            if (provider === 'gemini') {
+                const genAI = new GoogleGenerativeAI(key);
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const result = await model.generateContent({
+                  contents: [{ role: "user", parts: [{ text: prompt }] }],
+                  generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.1,
+                  },
+                });
+                evaluationData = JSON.parse(result.response.text());
+            } else {
+                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${key}`,
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    messages: [{ role: "user", content: prompt }],
+                    model: "llama3-8b-8192", 
+                    response_format: { type: "json_object" }, 
+                    temperature: 0.1,
+                  })
+                });
 
-        evaluationData = JSON.parse(result.response.text());
-        break; // ✓ success — exit retry loop
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+                }
 
-      } catch (err) {
-        lastError = err;
+                const data = await response.json();
+                evaluationData = JSON.parse(data.choices[0].message.content);
+            }
+            
+            console.log(`[auto-evaluate] Success with ${provider} key #${i + 1} for ${participantId}`);
+            break; // ✓ success
 
-        const isRateLimit =
-          err?.status === 429 ||
-          err?.message?.includes("429") ||
-          err?.message?.toLowerCase().includes("quota") ||
-          err?.message?.toLowerCase().includes("rate");
+        } catch (err) {
+            lastError = err;
+            const isRateLimit = 
+              err?.status === 429 || 
+              err?.message?.includes("429") || 
+              err?.message?.includes("403") || 
+              err?.message?.toLowerCase().includes("quota") || 
+              err?.message?.toLowerCase().includes("rate");
 
-        if (isRateLimit && attempt < MAX_RETRIES - 1) {
-          const jitter = Math.random() * 1000; // 0–1000 ms
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt) + jitter;
-          console.warn(
-            `[auto-evaluate] Rate limit for ${participantId}. ` +
-            `Retry ${attempt + 1}/${MAX_RETRIES - 1} in ${Math.round(delay)}ms…`
-          );
-          await new Promise((res) => setTimeout(res, delay));
-        } else {
-          throw err; // non-rate-limit error or final attempt — bail out
+            if (isRateLimit) {
+                console.warn(`[auto-evaluate] Rate limit on ${provider} key #${i + 1}. Switching to next...`);
+                continue; // try next key inline instantly
+            } else {
+                console.error(`[auto-evaluate] Fatal error with ${provider} key #${i + 1}:`, err.message);
+                throw err; // non-ratelimit error, we should crash out and expose the syntax/parsing issue
+            }
         }
-      }
     }
 
     if (!evaluationData) {
-      throw lastError || new Error("Evaluation failed after all retries");
+      throw lastError || new Error("Evaluation failed across all provided API keys!");
     }
 
     // 4. Persist evaluation to Firestore → leaderboard updates via onSnapshot
@@ -171,3 +188,4 @@ You MUST output strictly in JSON using the exact schema below. Do NOT output any
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }
+

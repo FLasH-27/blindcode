@@ -9,15 +9,16 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Gemini API Key is missing in environment variables' }, { status: 500 });
+    // 3. Setup API Keys for Rotation
+    const geminiKeysRaw = process.env.GEMINI_API_KEYS || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
+    const geminiKeys = geminiKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
+
+    const groqKeysRaw = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+    const groqKeys = groqKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
+
+    if (geminiKeys.length === 0 && groqKeys.length === 0) {
+      return NextResponse.json({ error: 'No API Keys configured in environment variables' }, { status: 500 });
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-
-    // Using gemini-2.5-flash to avoid 429 quota limits on the Pro tier
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
 You are an expert competitive programming judge for a "Blind Code" competition (participants are not allowed to compile there program and see output). 
@@ -55,21 +56,76 @@ You MUST output strictly in JSON using the exact schema below. Do NOT output any
 }
     `;
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      }
-    });
+    const allEndpoints = [
+      ...geminiKeys.map(key => ({ provider: 'gemini', key })),
+      ...groqKeys.map(key => ({ provider: 'groq', key }))
+    ];
 
-    const responseText = result.response.text();
-    let evaluationData;
+    let evaluationData = null;
+    let lastError = null;
 
-    try {
-      evaluationData = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error("Failed to parse Gemini output as JSON: " + responseText);
+    for (let i = 0; i < allEndpoints.length; i++) {
+        const { provider, key } = allEndpoints[i];
+        try {
+            if (provider === 'gemini') {
+                const genAI = new GoogleGenerativeAI(key);
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const result = await model.generateContent({
+                  contents: [{ role: "user", parts: [{ text: prompt }] }],
+                  generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.1,
+                  },
+                });
+                evaluationData = JSON.parse(result.response.text());
+            } else {
+                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${key}`,
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    messages: [{ role: "user", content: prompt }],
+                    model: "llama3-8b-8192", 
+                    response_format: { type: "json_object" }, 
+                    temperature: 0.1,
+                  })
+                });
+
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                evaluationData = JSON.parse(data.choices[0].message.content);
+            }
+            
+            console.log(`[evaluate] Success with ${provider} key #${i + 1}`);
+            break; // ✓ success
+
+        } catch (err) {
+            lastError = err;
+            const isRateLimit = 
+              err?.status === 429 || 
+              err?.message?.includes("429") || 
+              err?.message?.includes("403") || 
+              err?.message?.toLowerCase().includes("quota") || 
+              err?.message?.toLowerCase().includes("rate");
+
+            if (isRateLimit) {
+                console.warn(`[evaluate] Rate limit on ${provider} key #${i + 1}. Switching to next...`);
+                continue; // try next key inline instantly
+            } else {
+                console.error(`[evaluate] Fatal error with ${provider} key #${i + 1}:`, err.message);
+                throw err; // non-ratelimit error
+            }
+        }
+    }
+
+    if (!evaluationData) {
+      throw lastError || new Error("Evaluation failed across all provided API keys!");
     }
 
     return NextResponse.json(evaluationData);
