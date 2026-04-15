@@ -14,7 +14,7 @@ export default function AdminLayout({ children }) {
   const navItems = [
     { name: "Problems", href: "/admin/problems", icon: Code2 },
     { name: "Contest", href: "/admin/contest", icon: Radio },
-    { name: "Leaderboard", href: "/admin/default/leaderboard", icon: Trophy },
+    { name: "Leaderboard", href: "/leaderboard", icon: Trophy },
     { name: "Credentials", href: "/admin/credentials", icon: KeyRound },
   ];
 

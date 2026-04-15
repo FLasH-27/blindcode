@@ -760,7 +760,7 @@ export default function AdminContestPage() {
 
             {/* Leaderboard button */}
             <Link
-              href={`/admin/${selectedSession === "current" && config?.sessionId ? config.sessionId : selectedSession === "current" ? "default" : selectedSession}/leaderboard`}
+              href="/leaderboard"
               id="leaderboard-btn"
               style={{
                 border: "1px solid #f97316",

@@ -167,6 +167,16 @@ export const submitContestEarly = async (participantId) => {
     await updateDoc(docRef, {
       submittedAt: serverTimestamp()
     });
+
+    // Trigger auto-evaluation in the background (fire-and-forget)
+    // The leaderboard will update automatically once the evaluation is saved
+    fetch("/api/auto-evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ participantId }),
+    }).catch((err) => {
+      console.error("Auto-evaluation request failed:", err);
+    });
   } catch (error) {
     console.error("Error submitting contest early:", error);
     throw error;

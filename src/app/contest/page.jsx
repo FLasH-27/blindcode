@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import ParticipantGuard from "@/components/ParticipantGuard";
 import { getParticipant, getProblem, listenToContest, updateCode, updateLanguage, logTabSwitch, submitContestEarly } from "@/lib/participants";
 import { db } from "@/lib/firebase";
@@ -378,15 +379,28 @@ function ContestPage() {
         <div className="absolute inset-0 z-50 bg-[rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
           <h2 className="text-white text-[24px] font-semibold mb-2">Contest Ended</h2>
           <p className="text-[#71717a] text-[14px] mb-4">Your code has been saved.</p>
-          <p className="text-[#f97316] text-[13px]">{formatLastSaved()}</p>
+          <p className="text-[#f97316] text-[13px] mb-6">{formatLastSaved()}</p>
+          <Link
+            href="/leaderboard"
+            className="px-6 py-2.5 bg-[#f97316] text-black text-[14px] font-semibold rounded-lg hover:bg-[#ea580c] transition-colors"
+          >
+            View Leaderboard
+          </Link>
         </div>
       )}
       {/* Submitted Early Overlay */}
       {isSubmitted && contestStatus !== "ended" && (
         <div className="absolute inset-0 z-50 bg-[rgba(0,0,0,0.85)] flex flex-col items-center justify-center">
           <h2 className="text-white text-[24px] font-semibold mb-2">Submitted Successfully</h2>
-          <p className="text-[#71717a] text-[14px] mb-4">You have submitted your code early. Please wait for the contest to end.</p>
-          <p className="text-[#f97316] text-[13px]">{formatLastSaved()}</p>
+          <p className="text-[#71717a] text-[14px] mb-4">Your code is being evaluated by AI. Check the leaderboard for your score!</p>
+          <p className="text-[#f97316] text-[13px] mb-6">{formatLastSaved()}</p>
+          <Link
+            href="/leaderboard"
+            target="_blank"
+            className="px-6 py-2.5 bg-[#f97316] text-black text-[14px] font-semibold rounded-lg hover:bg-[#ea580c] transition-colors"
+          >
+            View Leaderboard →
+          </Link>
         </div>
       )}
     </div>

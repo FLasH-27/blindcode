@@ -80,6 +80,12 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-3">
           <Link
+            href="/leaderboard"
+            className="px-4 py-2 text-sm text-[#71717a] hover:text-white transition-colors rounded-lg hover:bg-[#111]"
+          >
+            Leaderboard
+          </Link>
+          <Link
             href="/admin"
             className="px-4 py-2 text-sm text-[#71717a] hover:text-white transition-colors rounded-lg hover:bg-[#111]"
           >
@@ -161,14 +167,22 @@ export default function Home() {
               <Typewriter />
             </div>
 
-            {/* CTA Button */}
-            <Link
-              href="/join"
-              className="inline-flex flex-row items-center justify-center px-8 py-4 text-lg font-bold text-black bg-[#f97316] rounded-xl hover:bg-[#ea580c] transition-all duration-200 shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)]"
-            >
-              Join a Contest
-              <span className="inline-block ml-2 transition-transform hover:translate-x-1">→</span>
-            </Link>
+            {/* CTA Buttons */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <Link
+                href="/join"
+                className="inline-flex flex-row items-center justify-center px-8 py-4 text-lg font-bold text-black bg-[#f97316] rounded-xl hover:bg-[#ea580c] transition-all duration-200 shadow-[0_0_30px_rgba(249,115,22,0.3)] hover:shadow-[0_0_50px_rgba(249,115,22,0.5)]"
+              >
+                Join a Contest
+                <span className="inline-block ml-2 transition-transform hover:translate-x-1">→</span>
+              </Link>
+              <Link
+                href="/leaderboard"
+                className="inline-flex flex-row items-center justify-center px-8 py-4 text-lg font-semibold text-[#f97316] border border-[rgba(249,115,22,0.4)] rounded-xl hover:bg-[rgba(249,115,22,0.08)] transition-all duration-200"
+              >
+                🏆 Leaderboard
+              </Link>
+            </div>
           </div>
         </div>
 
