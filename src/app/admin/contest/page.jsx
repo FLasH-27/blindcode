@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, ArrowUpDown, Trash2 } from "lucide-react";
+import { Loader2, Search, ArrowUpDown, Trash2, Pencil } from "lucide-react";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -407,6 +407,47 @@ export default function AdminContestPage() {
 
   // Drawer state
   const [drawerParticipant, setDrawerParticipant] = useState(null);
+
+  // Edit Score state
+  const [editScoreTarget, setEditScoreTarget] = useState(null); // participant
+  const [editScoreValue, setEditScoreValue] = useState("");
+  const [editFeedback, setEditFeedback] = useState("");
+  const [editScoreLoading, setEditScoreLoading] = useState(false);
+  const [editScoreError, setEditScoreError] = useState("");
+
+  const openEditScore = (p) => {
+    setEditScoreTarget(p);
+    setEditScoreValue(String(p.evaluation?.totalScore ?? ""));
+    setEditFeedback(p.evaluation?.feedback ?? "");
+    setEditScoreError("");
+  };
+
+  const handleSaveScore = async () => {
+    const total = parseInt(editScoreValue);
+    if (isNaN(total) || total < 0 || total > 100) {
+      setEditScoreError("Score must be a number between 0 and 100.");
+      return;
+    }
+    setEditScoreLoading(true);
+    setEditScoreError("");
+    try {
+      const existing = editScoreTarget.evaluation || {};
+      await saveEvaluation(editScoreTarget.id, {
+        executionScore: existing.executionScore ?? 0,
+        complexityScore: existing.complexityScore ?? 0,
+        logicScore: existing.logicScore ?? 0,
+        errorScore: existing.errorScore ?? 0,
+        ...existing,
+        totalScore: total,
+        feedback: editFeedback || existing.feedback || "Score manually set by admin.",
+      });
+      setEditScoreTarget(null);
+    } catch (err) {
+      setEditScoreError("Failed to save score. Please try again.");
+    } finally {
+      setEditScoreLoading(false);
+    }
+  };
 
   // Subscribe to contest config
   useEffect(() => {
@@ -869,6 +910,15 @@ export default function AdminContestPage() {
                                 <Button
                                 variant="outline"
                                 size="icon"
+                                title="Edit Score"
+                                onClick={() => openEditScore(p)}
+                                className="h-8 w-8 border-[#333] hover:bg-[#1a2a1a] hover:border-[#22c55e]/40 text-[#71717a] hover:text-[#22c55e]"
+                                >
+                                <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                variant="outline"
+                                size="icon"
                                 onClick={() => {
                                     if(window.confirm("Are you sure you want to permanently delete this participant?")) {
                                         deleteParticipant(p.id);
@@ -1126,6 +1176,91 @@ export default function AdminContestPage() {
         isOpen={!!drawerParticipant}
         onClose={() => setDrawerParticipant(null)}
       />
+
+      {/* ── Edit Score Dialog ───────────────────────────────────── */}
+      <Dialog open={!!editScoreTarget} onOpenChange={(open) => { if (!open) setEditScoreTarget(null); }}>
+        <DialogContent className="bg-[#111] border-[#222]">
+          <DialogHeader>
+            <DialogTitle className="text-white">Edit Score</DialogTitle>
+            <DialogDescription className="text-[#71717a]">
+              Manually override the score for{" "}
+              <span className="text-white font-medium">{editScoreTarget?.name}</span>.
+              This will update the leaderboard immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-5">
+            {/* Current score pill */}
+            {editScoreTarget?.evaluation && (
+              <div className="flex items-center gap-2 text-sm text-[#71717a]">
+                Current score:
+                <span className={`font-bold ${
+                  editScoreTarget.evaluation.totalScore >= 80 ? "text-[#22c55e]"
+                  : editScoreTarget.evaluation.totalScore >= 50 ? "text-yellow-500"
+                  : "text-red-500"
+                }`}>
+                  {editScoreTarget.evaluation.totalScore}/100
+                </span>
+              </div>
+            )}
+
+            {/* Score input */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white flex items-center justify-between">
+                New Total Score
+                <span className="text-[#f97316] font-bold text-lg">
+                  {editScoreValue || "—"}
+                  <span className="text-xs font-normal text-[#555]">/100</span>
+                </span>
+              </label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={editScoreValue}
+                onChange={(e) => setEditScoreValue(e.target.value)}
+                placeholder="0 – 100"
+                className="bg-[#0a0a0a] border-[#222] text-white focus-visible:ring-[#f97316] text-lg font-bold"
+              />
+            </div>
+
+            {/* Feedback input */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Feedback <span className="text-[#555] font-normal">(optional)</span></label>
+              <textarea
+                value={editFeedback}
+                onChange={(e) => setEditFeedback(e.target.value)}
+                placeholder="Leave a note about this score override…"
+                rows={3}
+                className="w-full bg-[#0a0a0a] border border-[#222] rounded-md text-[#a1a1aa] text-sm p-3 resize-none focus:outline-none focus:ring-1 focus:ring-[#f97316]"
+              />
+            </div>
+
+            {editScoreError && (
+              <p className="text-red-500 text-xs">{editScoreError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditScoreTarget(null)}
+              disabled={editScoreLoading}
+              className="border-[#222] text-white"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveScore}
+              disabled={editScoreLoading || editScoreValue === ""}
+              className="bg-[#22c55e] text-black hover:bg-[#16a34a] font-semibold"
+            >
+              {editScoreLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Save Score
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
