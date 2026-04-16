@@ -5,6 +5,7 @@
   src: url('/font/ClimaxFont.otf') format('opentype');
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @theme {

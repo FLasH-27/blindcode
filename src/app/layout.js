@@ -14,6 +14,15 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <link
+          rel="preload"
+          href="/font/ClimaxFont.otf"
+          as="font"
+          type="font/otf"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} font-sans min-h-screen bg-[#0a0a0a] text-white antialiased`}>
         <ContestConfigProvider>
           {children}

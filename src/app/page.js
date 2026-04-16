@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import LazyVideo from "@/components/LazyVideo";
 
 // Typewriter Component
 function Typewriter() {
@@ -135,16 +137,10 @@ export default function Home() {
                 }}
               />
               {/* Video */}
-              <video
-                autoPlay
-                loop
-                muted
-                playsInline
-                onContextMenu={(e) => e.preventDefault()}
-                className="w-[280px] h-[280px] md:w-[520px] md:h-[520px] rounded-full object-contain z-10 bg-[#0f0f10]"
-              >
-                <source src="./Assets/stickman video.mp4" type="video/mp4" />
-              </video>
+              <LazyVideo
+                src="/Assets/stickman video.mp4"
+                className="w-[280px] h-[280px] md:w-[520px] md:h-[520px] rounded-full overflow-hidden z-10 bg-[#0f0f10]"
+              />
             </div>
           </div>
 
@@ -190,9 +186,9 @@ export default function Home() {
         {/* Organised By Bar */}
         <div className="w-full border-t border-[#111] bg-[#080808] py-0 flex flex-wrap items-center justify-center gap-5 px-6 md:px-0 mt-2 mb-16 ">
           <span className="text-[#444] text-[50px] font-medium tracking-wide">Organized By</span>
-          <img src="./Assets/Nexus logo.webp" alt="Nexus" className="h-[120px] w-auto shrink-0" />
+          <Image src="/Assets/Nexus logo.webp" alt="Nexus" width={139} height={120} loading="lazy" priority={false} className="h-[120px] w-auto shrink-0" />
           <span className="text-[#444] text-[50px] font-medium tracking-wide">For</span>
-          <img src="./Assets/avishkar logo.webp" alt="Avishkar" className="h-[200px] w-auto shrink-0" />
+          <Image src="/Assets/avishkar logo.webp" alt="Avishkar" width={200} height={200} loading="lazy" priority={false} className="h-[200px] w-auto shrink-0" />
         </div>
 
         {/* Rules Section (Terminal) */}
