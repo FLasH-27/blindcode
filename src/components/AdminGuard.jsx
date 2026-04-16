@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export default function AdminGuard({ children }) {
   const [isAuthed, setIsAuthed] = useState(false);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -18,11 +19,11 @@ export default function AdminGuard({ children }) {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (loginAdmin(password)) {
+    if (loginAdmin(username, password)) {
       setIsAuthed(true);
       setError("");
     } else {
-      setError("Incorrect password");
+      setError("Incorrect username or password");
     }
   };
 
@@ -33,17 +34,24 @@ export default function AdminGuard({ children }) {
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
         <div className="bg-[#111] border border-[#222] rounded-lg p-8 w-full max-w-[380px]">
           <h1 className="text-white text-base font-semibold mb-1">Admin Access</h1>
-          <p className="text-[#71717a] text-sm mb-6">Enter the admin password to continue</p>
+          <p className="text-[#71717a] text-sm mb-6">Enter your admin credentials to continue</p>
           
           <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-3">
+              <Input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Username"
+                className="bg-[#0a0a0a] border-[#2a2a2a] text-white focus-visible:ring-[#f97316]"
+                autoFocus
+              />
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 className="bg-[#0a0a0a] border-[#2a2a2a] text-white focus-visible:ring-[#f97316]"
-                autoFocus
               />
               {error && <p className="text-red-500 text-xs">{error}</p>}
             </div>
