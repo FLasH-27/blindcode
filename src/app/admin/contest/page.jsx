@@ -152,6 +152,7 @@ function ViewCodeDrawer({ participant, problem, isOpen, onClose }) {
   const scrollRef = useRef(null);
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalError, setEvalError] = useState("");
+  const [evalProvider, setEvalProvider] = useState("gemini"); // 'gemini' | 'groq'
 
   const handleEvaluate = async () => {
     if (!participant || !problem) return;
@@ -167,6 +168,7 @@ function ViewCodeDrawer({ participant, problem, isOpen, onClose }) {
           problemTitle: problem.title,
           problemDescription: problem.description,
           examples: problem.examples,
+          provider: evalProvider,
         }),
       });
       const data = await res.json();
@@ -360,13 +362,40 @@ function ViewCodeDrawer({ participant, problem, isOpen, onClose }) {
                 <div className="space-y-3">
                     <p className="text-[#71717a] text-[13px]">No AI evaluation has been run for this submission yet.</p>
                     {evalError && <p className="text-red-500 text-xs">{evalError}</p>}
+                    {/* Provider toggle */}
+                    <div className="flex items-center gap-2 p-1 bg-[#161616] border border-[#222] rounded-lg">
+                      <button
+                        onClick={() => setEvalProvider("gemini")}
+                        className={`flex-1 text-xs py-1.5 px-3 rounded-md font-semibold transition-all ${
+                          evalProvider === "gemini"
+                            ? "bg-[#f97316] text-black shadow"
+                            : "text-[#71717a] hover:text-white"
+                        }`}
+                      >
+                        ✦ Gemini
+                      </button>
+                      <button
+                        onClick={() => setEvalProvider("groq")}
+                        className={`flex-1 text-xs py-1.5 px-3 rounded-md font-semibold transition-all ${
+                          evalProvider === "groq"
+                            ? "bg-[#6366f1] text-white shadow"
+                            : "text-[#71717a] hover:text-white"
+                        }`}
+                      >
+                        ⚡ Groq
+                      </button>
+                    </div>
                     <Button 
                         onClick={handleEvaluate} 
                         disabled={evalLoading || !participant.code}
-                        className="w-full bg-[#f97316] text-black hover:bg-[#ea580c] font-semibold"
+                        className={`w-full font-semibold ${
+                          evalProvider === "groq"
+                            ? "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
+                            : "bg-[#f97316] text-black hover:bg-[#ea580c]"
+                        }`}
                     >
                         {evalLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                        Evaluate with Gemini
+                        Evaluate with {evalProvider === "groq" ? "Groq" : "Gemini"}
                     </Button>
                 </div>
             )}

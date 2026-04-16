@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(req) {
   try {
-    const { code, language, problemTitle, problemDescription, examples } = await req.json();
+    const { code, language, problemTitle, problemDescription, examples, provider: forcedProvider } = await req.json();
 
     if (!code || !problemTitle || !problemDescription) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -13,7 +13,7 @@ export async function POST(req) {
     const geminiKeysRaw = process.env.GEMINI_API_KEYS || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
     const geminiKeys = geminiKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
 
-    const groqKeysRaw = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+    const groqKeysRaw = process.env.GROQ_API_KEYS || process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.GROQ_API_KEY || "";
     const groqKeys = groqKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
 
     if (geminiKeys.length === 0 && groqKeys.length === 0) {
@@ -56,10 +56,18 @@ You MUST output strictly in JSON using the exact schema below. Do NOT output any
 }
     `;
 
-    const allEndpoints = [
+    // If a provider is forced by the caller, only use those keys; otherwise try Gemini first then Groq
+    let allEndpoints = [
       ...geminiKeys.map(key => ({ provider: 'gemini', key })),
       ...groqKeys.map(key => ({ provider: 'groq', key }))
     ];
+    if (forcedProvider === 'gemini') {
+      allEndpoints = geminiKeys.map(key => ({ provider: 'gemini', key }));
+      if (allEndpoints.length === 0) return NextResponse.json({ error: 'No Gemini API keys configured' }, { status: 500 });
+    } else if (forcedProvider === 'groq') {
+      allEndpoints = groqKeys.map(key => ({ provider: 'groq', key }));
+      if (allEndpoints.length === 0) return NextResponse.json({ error: 'No Groq API keys configured' }, { status: 500 });
+    }
 
     let evaluationData = null;
     let lastError = null;
@@ -87,7 +95,7 @@ You MUST output strictly in JSON using the exact schema below. Do NOT output any
                   },
                   body: JSON.stringify({
                     messages: [{ role: "user", content: prompt }],
-                    model: "llama3-8b-8192", 
+                    model: "llama-3.1-8b-instant", 
                     response_format: { type: "json_object" }, 
                     temperature: 0.1,
                   })

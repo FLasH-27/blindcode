@@ -59,7 +59,7 @@ export async function POST(req) {
     const geminiKeysRaw = process.env.GEMINI_API_KEYS || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
     const geminiKeys = geminiKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
 
-    const groqKeysRaw = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+    const groqKeysRaw = process.env.GROQ_API_KEYS || process.env.NEXT_PUBLIC_GROQ_API_KEY || process.env.GROQ_API_KEY || "";
     const groqKeys = groqKeysRaw.split(",").map(k => k.trim()).filter(Boolean);
 
     if (geminiKeys.length === 0 && groqKeys.length === 0) {
@@ -137,7 +137,7 @@ You MUST output strictly in JSON using the exact schema below. Do NOT output any
                   },
                   body: JSON.stringify({
                     messages: [{ role: "user", content: prompt }],
-                    model: "llama3-8b-8192", 
+                    model: "llama-3.1-8b-instant", 
                     response_format: { type: "json_object" }, 
                     temperature: 0.1,
                   })
