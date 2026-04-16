@@ -16,7 +16,7 @@ function ContestPage() {
   const [problem, setProblem] = useState(null);
   const [contestStatus, setContestStatus] = useState("idle");
   const [activeTab, setActiveTab] = useState("Description");
-  
+
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +26,9 @@ function ContestPage() {
 
   // Tab switch logic
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
-  const [showBanner, setShowBanner] = useState(false);
+  const [showWarningBanner, setShowWarningBanner] = useState(false);
+  // Counts switches within THIS page session (not from DB)
+  const sessionSwitchRef = useRef(0);
 
   // Timer logic
   const [endsAt, setEndsAt] = useState(null);
@@ -113,64 +115,67 @@ function ContestPage() {
       setTimeLeft(null);
       return;
     }
-    
+
     const interval = setInterval(() => {
       const now = Date.now();
       const end = typeof endsAt === 'number' ? endsAt : (endsAt.toDate ? endsAt.toDate().getTime() : new Date(endsAt).getTime());
       const remaining = Math.max(0, end - now);
-      
+
       setTimeLeft(remaining);
-      
+
       if (remaining <= 0) {
         setContestStatus("ended"); // Optimistic update
       }
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [contestStatus, endsAt]);
 
   // Tab Switch Effect
   useEffect(() => {
-    if (contestStatus !== "active") return;
-    
+    if (contestStatus !== "active" || isSubmitted) return;
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         const pId = localStorage.getItem("participantId");
         if (pId) logTabSwitch(pId);
-        
-        setTabSwitchCount(prev => {
-          const newCount = prev + 1;
-          setShowBanner(true);
-          return newCount;
-        });
+
+        sessionSwitchRef.current += 1;
+        setTabSwitchCount(prev => prev + 1);
+
+        if (sessionSwitchRef.current === 1) {
+          // First switch — show persistent warning
+          setShowWarningBanner(true);
+        } else if (sessionSwitchRef.current >= 2) {
+          // Second switch — auto-submit
+          setShowWarningBanner(false);
+          const pId = localStorage.getItem("participantId");
+          if (pId) {
+            submitContestEarly(pId)
+              .then(() => setIsSubmitted(true))
+              .catch(err => console.error("Auto-submit on tab switch failed:", err));
+          }
+        }
       }
     };
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [contestStatus]);
-
-  // Banner fade out
-  useEffect(() => {
-    if (showBanner && tabSwitchCount < 3) {
-      const t = setTimeout(() => setShowBanner(false), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [showBanner, tabSwitchCount]);
+  }, [contestStatus, isSubmitted]);
 
   const handleEditorChange = (value) => {
     setCode(value);
     setIsSaving(true);
-    
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
+
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         const pId = localStorage.getItem("participantId");
         await updateCode(pId, value);
-        setLastSaved(new Date()); 
+        setLastSaved(new Date());
       } catch (err) {
         console.error("Save failed", err);
       } finally {
@@ -182,7 +187,7 @@ function ContestPage() {
   const formatLastSaved = () => {
     if (isSaving) return "Saving...";
     if (!lastSaved) return "Not saved yet";
-    
+
     // hh:mm:ss.ms
     const pad = (n) => n.toString().padStart(2, '0');
     const h = pad(lastSaved.getHours());
@@ -231,10 +236,10 @@ function ContestPage() {
 
     // Clean any lingering markdown artifacts from old database imports
     if (content) {
-        content = content.replace(/\*\*/g, '');
-        content = content.replace(/\\\[/g, '[');
-        content = content.replace(/\\\]/g, ']');
-        content = content.replace(/\\_/g, '_');
+      content = content.replace(/\*\*/g, '');
+      content = content.replace(/\\\[/g, '[');
+      content = content.replace(/\\\]/g, ']');
+      content = content.replace(/\\_/g, '_');
     }
 
     return (
@@ -252,11 +257,11 @@ function ContestPage() {
           <div className="text-[#f97316] text-[14px] font-semibold">Blind Code</div>
           <div className="text-[#71717a] text-[13px]">{participant?.name}</div>
         </div>
-        
+
         <div className="w-1/3 flex justify-center">
           <div className="text-[#71717a] text-[12px] tabular-nums">{formatLastSaved()}</div>
         </div>
-        
+
         <div className="w-1/3 flex justify-end items-center gap-4">
           {contestStatus === "active" && !isSubmitted && (
             <button
@@ -275,14 +280,19 @@ function ContestPage() {
         </div>
       </div>
 
-      {/* Warning Banner */}
-      {showBanner && (
-        <div className="bg-[#1c0a0a] border-b border-[#7f1d1d] py-2 px-4 shadow-sm text-center shrink-0 z-10 animate-in slide-in-from-top-2">
-          <p className="text-[#ef4444] text-[13px] font-medium">
-            {tabSwitchCount >= 3 
-              ? "⚠ Multiple tab switches detected. Your activity has been flagged."
-              : "⚠ Tab switch detected. This has been logged."}
+      {/* Warning Banner — shown after 1st switch, stays until submitted or dismissed */}
+      {showWarningBanner && (
+        <div className="bg-[#1c0a0a] border-b border-[#7f1d1d] py-2.5 px-4 shrink-0 z-10 flex items-center justify-between">
+          <p className="text-[#ef4444] text-[13px] font-medium flex-1 text-center">
+            ⚠ You have switched away from this page. <strong>If you do it again, your code will be automatically submitted.</strong>
           </p>
+          <button
+            onClick={() => setShowWarningBanner(false)}
+            className="text-[#7f1d1d] hover:text-[#ef4444] text-[18px] leading-none ml-4 transition-colors"
+            aria-label="Dismiss warning"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -295,11 +305,10 @@ function ContestPage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 text-[13px] h-full flex items-center justify-center border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500 focus-visible:-outline-offset-2 ${
-                  activeTab === tab 
-                    ? "text-white border-[#f97316]" 
-                    : "text-[#71717a] border-transparent hover:text-[#a1a1aa]"
-                }`}
+                className={`flex-1 text-[13px] h-full flex items-center justify-center border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500 focus-visible:-outline-offset-2 ${activeTab === tab
+                  ? "text-white border-[#f97316]"
+                  : "text-[#71717a] border-transparent hover:text-[#a1a1aa]"
+                  }`}
               >
                 {tab}
               </button>
@@ -315,7 +324,7 @@ function ContestPage() {
         <div className="w-[60%] flex flex-col bg-[#1e1e1e] relative">
           {/* Minimal Language Selector */}
           <div className="absolute top-2 right-4 z-10">
-            <select 
+            <select
               value={language}
               onChange={(e) => {
                 const newLang = e.target.value;
@@ -336,11 +345,11 @@ function ContestPage() {
               <option value="cpp" className="bg-[#2d2d2d] text-[#d4d4d4]">C++</option>
             </select>
           </div>
-          
-          <div 
+
+          <div
             className="flex-1 min-h-0 relative h-full w-full pt-10"
             // TEMPORARY BYPASS FOR TESTING: Uncomment this before deployment!
-            // onPasteCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onPasteCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
             onCopyCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
             onCutCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
             onContextMenu={(e) => e.preventDefault()}
