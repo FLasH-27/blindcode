@@ -1,4 +1,8 @@
-const ADMIN_CREDENTIALS = process.env.NEXT_PUBLIC_ADMIN_CREDENTIALS;
+const VALID_ADMINS = [
+  { username: "admin1", password: "blindcode2026" },
+  { username: "admin2", password: "secret123" },
+  { username: "admin3", password: "anotherPassword" }
+];
 
 export function checkAdminAuth() {
   if (typeof window === "undefined") return false;
@@ -6,13 +10,9 @@ export function checkAdminAuth() {
 }
 
 export function loginAdmin(username, password) {
-  if (!ADMIN_CREDENTIALS) return false;
-  
-  const credentials = ADMIN_CREDENTIALS.split(',').map(c => c.trim());
-  const isValid = credentials.some(c => {
-    const [u, p] = c.split(':');
-    return u === username && p === password;
-  });
+  const isValid = VALID_ADMINS.some(
+    (admin) => admin.username === username && admin.password === password
+  );
 
   if (isValid) {
     localStorage.setItem("adminAuthed", "true");
