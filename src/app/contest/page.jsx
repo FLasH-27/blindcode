@@ -36,6 +36,8 @@ function ContestPage() {
 
   // Debouncing logic
   const saveTimeoutRef = useRef(null);
+  // Mirror of `code` state — lets stale-closure handlers read the latest value
+  const codeRef = useRef("");
   // Track whether problem has been loaded to avoid duplicate fetches in onSnapshot
   const problemLoadedRef = useRef(false);
 
@@ -48,7 +50,9 @@ function ContestPage() {
         const pData = await getParticipant(pId);
         if (pData) {
           setParticipant(pData);
-          setCode(pData.code || "");
+          const savedCode = pData.code || "";
+          setCode(savedCode);
+          codeRef.current = savedCode;
           setLanguage(pData.language || "javascript");
           if (pData.lastSavedAt) {
             setLastSaved(pData.lastSavedAt.toDate());
@@ -138,6 +142,19 @@ function ContestPage() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         const pId = localStorage.getItem("participantId");
+
+        // Flush any pending debounce and save immediately so no keystrokes are lost
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          saveTimeoutRef.current = null;
+        }
+        if (pId && codeRef.current !== undefined) {
+          updateCode(pId, codeRef.current)
+            .then(() => setLastSaved(new Date()))
+            .catch(err => console.error("Visibility-hide save failed:", err))
+            .finally(() => setIsSaving(false));
+        }
+
         if (pId) logTabSwitch(pId);
 
         sessionSwitchRef.current += 1;
@@ -149,7 +166,6 @@ function ContestPage() {
         } else if (sessionSwitchRef.current >= 2) {
           // Second switch — auto-submit
           setShowWarningBanner(false);
-          const pId = localStorage.getItem("participantId");
           if (pId) {
             submitContestEarly(pId)
               .then(() => setIsSubmitted(true))
@@ -163,8 +179,29 @@ function ContestPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [contestStatus, isSubmitted]);
 
+  // Block Inspect Element (F12, Ctrl+Shift+I, etc.)
+  useEffect(() => {
+    if (contestStatus !== "active" || isSubmitted) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "F12") {
+        e.preventDefault();
+      }
+      if (e.ctrlKey && e.shiftKey && ["I", "J", "C", "i", "j", "c"].includes(e.key)) {
+        e.preventDefault();
+      }
+      if (e.ctrlKey && ["U", "u"].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [contestStatus, isSubmitted]);
+
   const handleEditorChange = (value) => {
     setCode(value);
+    codeRef.current = value; // keep ref in sync for stale-closure handlers
     setIsSaving(true);
 
     if (saveTimeoutRef.current) {

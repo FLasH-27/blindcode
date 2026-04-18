@@ -13,7 +13,7 @@ import {
   extendJoiningWindow
 } from "@/lib/contest";
 import { subscribeToProblems } from "@/lib/problems";
-import { saveEvaluation, deleteParticipant } from "@/lib/participants";
+import { saveEvaluation, deleteParticipant, addToLeaderboard } from "@/lib/participants";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, ArrowUpDown, Trash2, Pencil } from "lucide-react";
+import { Loader2, Search, ArrowUpDown, Trash2, Pencil, Trophy } from "lucide-react";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -874,7 +874,7 @@ export default function AdminContestPage() {
                                 <ArrowUpDown className="w-3 h-3" />
                             </button>
                         </TableHead>
-                        <TableHead className="text-center">Switches</TableHead>
+
                         <TableHead>Status</TableHead>
                         <TableHead className="text-center">Score</TableHead>
                         <TableHead className="text-right">Action</TableHead>
@@ -883,7 +883,7 @@ export default function AdminContestPage() {
                 <TableBody>
                     {filteredAndSortedParticipants.length === 0 ? (
                     <TableRow>
-                        <TableCell colSpan={8} className="text-center py-12 text-[#71717a]">
+                        <TableCell colSpan={7} className="text-center py-12 text-[#71717a]">
                             No participants found matching your criteria.
                         </TableCell>
                     </TableRow>
@@ -911,9 +911,7 @@ export default function AdminContestPage() {
                             <span className="text-[#444] text-xs">Never</span>
                             )}
                         </TableCell>
-                        <TableCell className="text-center">
-                            <SwitchBadge count={p.tabSwitchCount} />
-                        </TableCell>
+
                         <TableCell>
                             <ParticipantStatusBadge participant={p} />
                         </TableCell>
@@ -944,6 +942,26 @@ export default function AdminContestPage() {
                                 className="h-8 w-8 border-[#333] hover:bg-[#1a2a1a] hover:border-[#22c55e]/40 text-[#71717a] hover:text-[#22c55e]"
                                 >
                                 <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                {/* Add to / Remove from leaderboard */}
+                                <Button
+                                variant="outline"
+                                size="icon"
+                                disabled={!p.evaluation}
+                                title={p.leaderboardVisible ? "Remove from Leaderboard" : "Add to Leaderboard"}
+                                onClick={() => {
+                                  const resolvedSession = selectedSession === "current"
+                                    ? (config?.sessionId || "default")
+                                    : selectedSession;
+                                  addToLeaderboard(p.id, !p.leaderboardVisible, resolvedSession);
+                                }}
+                                className={`h-8 w-8 border-[#333] transition-colors ${
+                                  p.leaderboardVisible
+                                    ? "bg-[#f97316]/10 border-[#f97316]/40 text-[#f97316] hover:bg-red-900/20 hover:border-red-500/40 hover:text-red-400"
+                                    : "text-[#71717a] hover:bg-[#f97316]/10 hover:border-[#f97316]/40 hover:text-[#f97316]"
+                                } disabled:opacity-30 disabled:cursor-not-allowed`}
+                                >
+                                <Trophy className="h-3.5 w-3.5" />
                                 </Button>
                                 <Button
                                 variant="outline"

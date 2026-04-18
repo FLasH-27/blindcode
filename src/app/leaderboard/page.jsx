@@ -247,10 +247,12 @@ export default function PublicLeaderboardPage() {
   const viewingSession = selectedSession ?? liveSessionId;
   const isViewingLive = viewingSession === liveSessionId;
 
-  // Filter participants to the viewed session
+  // Filter participants to the viewed session AND approved by admin
   const sessionParticipants = useMemo(() => {
     return participants.filter(
-      (p) => String(p.sessionId || "default") === String(viewingSession)
+      (p) =>
+        String(p.sessionId || "default") === String(viewingSession) &&
+        p.leaderboardVisible === true
     );
   }, [participants, viewingSession]);
 
@@ -355,9 +357,9 @@ export default function PublicLeaderboardPage() {
                 {isLiveAndActive && <LiveDot />}
               </h1>
               <p style={{ color: "#71717a", fontSize: 14, marginTop: 6 }}>
-                {sessionParticipants.length} coder{sessionParticipants.length !== 1 ? "s" : ""}
-                {" "}in this session
-                {isLiveAndActive && " • Scores update live as participants submit"}
+              {sessionParticipants.length} coder{sessionParticipants.length !== 1 ? "s" : ""}
+                {" "}approved on this leaderboard
+                {isLiveAndActive && " • Scores update live"}
                 {!isViewingLive && (
                   <span style={{ color: "#555", marginLeft: 6 }}>
                     — Past session
@@ -390,11 +392,11 @@ export default function PublicLeaderboardPage() {
               }}
             >
               <div style={{ fontSize: 40, marginBottom: 16 }}>🏆</div>
-              <p style={{ color: "#71717a", fontSize: 15, margin: 0 }}>No scores yet.</p>
+              <p style={{ color: "#71717a", fontSize: 15, margin: 0 }}>No approved scores yet.</p>
               <p style={{ color: "#444", fontSize: 13, marginTop: 6 }}>
                 {isLiveAndActive
-                  ? "Scores will appear here as participants submit their code."
-                  : "No evaluated submissions for this session."}
+                  ? "Scores will appear here after the admin approves them."
+                  : "No admin-approved submissions for this session."}
               </p>
             </div>
           )}

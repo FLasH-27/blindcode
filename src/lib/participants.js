@@ -161,6 +161,25 @@ export const saveEvaluation = async (participantId, evaluationData) => {
   }
 };
 
+/**
+ * Admin manually approves a participant's score to appear on the leaderboard.
+ * Toggles leaderboardVisible between true/false.
+ * If `sessionId` is provided and the participant has no sessionId set, it also
+ * stamps the correct session so old/legacy participants appear in the right bucket.
+ */
+export const addToLeaderboard = async (participantId, visible = true, sessionId = null) => {
+  try {
+    const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);
+    const update = { leaderboardVisible: visible };
+    // Stamp sessionId only if provided — fixes legacy participants with null sessionId
+    if (sessionId) update.sessionId = sessionId;
+    await updateDoc(docRef, update);
+  } catch (error) {
+    console.error("Error updating leaderboard visibility:", error);
+    throw error;
+  }
+};
+
 export const submitContestEarly = async (participantId) => {
   try {
     const docRef = doc(db, PARTICIPANTS_COLLECTION, participantId);
